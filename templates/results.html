@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluation Results | Write It Great</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <a href="https://www.writeitgreat.com" class="logo">
+                <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Write It Great" height="40">
+            </a>
+            <span class="tagline">an elite ghostwriting firm</span>
+        </div>
+    </header>
+
+    <!-- Results Section -->
+    <main class="main-content results-page">
+        <div class="container">
+            <div class="results-wrapper">
+                <div class="results-header">
+                    <h1>Evaluation Complete</h1>
+                    <p class="submission-id">Submission ID: {{ evaluation.submission_id }}</p>
+                </div>
+
+                <!-- Score Overview -->
+                <div class="score-overview">
+                    <div class="tier-display tier-{{ evaluation.tier|lower }}">
+                        <span class="tier-label">TIER</span>
+                        <span class="tier-value">{{ evaluation.tier }}</span>
+                    </div>
+                    <div class="score-display">
+                        <span class="score-value">{{ evaluation.total_score }}</span>
+                        <span class="score-max">/100</span>
+                    </div>
+                </div>
+
+                <div class="tier-description">
+                    {% if evaluation.tier == 'A' %}
+                        <p class="tier-text tier-a">Exceptional - Your proposal demonstrates strong potential for top-tier publishers.</p>
+                    {% elif evaluation.tier == 'B' %}
+                        <p class="tier-text tier-b">Strong - Your proposal shows promise with minor improvements needed.</p>
+                    {% elif evaluation.tier == 'C' %}
+                        <p class="tier-text tier-c">Promising - Your proposal needs significant work before submission.</p>
+                    {% else %}
+                        <p class="tier-text tier-d">Needs Development - Major revisions are required.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Book Info -->
+                <div class="book-info">
+                    <h2>{{ evaluation.book_title }}</h2>
+                    <p>by {{ evaluation.author_name }}</p>
+                    <span class="proposal-type">{{ evaluation.proposal_type|replace('_', ' ')|title }} Evaluation</span>
+                </div>
+
+                <!-- Executive Summary -->
+                <div class="results-section">
+                    <h3>Executive Summary</h3>
+                    <p class="summary-text">{{ evaluation.executive_summary }}</p>
+                </div>
+
+                <!-- Score Breakdown -->
+                <div class="results-section">
+                    <h3>Score Breakdown</h3>
+                    <div class="score-breakdown">
+                        {% set categories = [
+                            ('marketing', 'Marketing & Platform'),
+                            ('overview', 'Overview & Concept'),
+                            ('credentials', 'Author Credentials'),
+                            ('comps', 'Comparative Titles'),
+                            ('writing', 'Sample Writing'),
+                            ('outline', 'Book Outline'),
+                            ('completeness', 'Completeness')
+                        ] %}
+                        {% for key, label in categories %}
+                        <div class="score-bar-item">
+                            <div class="score-bar-label">
+                                <span>{{ label }}</span>
+                                <span class="score-bar-value">{{ evaluation.scores[key] }}/100</span>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-bar-fill" style="width: {{ evaluation.scores[key] }}%"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Strengths & Improvements -->
+                <div class="results-grid">
+                    <div class="results-section">
+                        <h3>✓ Top Strengths</h3>
+                        <ul class="strengths-list">
+                            {% for strength in evaluation.top_3_strengths %}
+                            <li>{{ strength }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="results-section">
+                        <h3>↑ Key Improvements</h3>
+                        <ul class="improvements-list">
+                            {% for improvement in evaluation.top_3_improvements %}
+                            <li>{{ improvement }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Next Steps -->
+                <div class="results-section">
+                    <h3>Recommended Next Steps</h3>
+                    <ol class="next-steps-list">
+                        {% for step in evaluation.recommended_next_steps %}
+                        <li>{{ step }}</li>
+                        {% endfor %}
+                    </ol>
+                </div>
+
+                <!-- Download Section -->
+                <div class="download-section">
+                    <h3>Download Your Full Report</h3>
+                    <p>Get the complete PDF report with detailed category-by-category feedback.</p>
+                    <a href="{{ url_for('download_report', submission_id=evaluation.submission_id) }}" 
+                       class="btn btn-primary btn-download">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7,10 12,15 17,10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download PDF Report
+                    </a>
+                </div>
+
+                <!-- CTA Section (for C/D tiers) -->
+                {% if evaluation.tier in ['C', 'D'] %}
+                <div class="cta-section">
+                    <h3>Ready to Strengthen Your Proposal?</h3>
+                    <p>Our team of expert ghostwriters and literary consultants can help you transform your proposal into a publisher-ready submission.</p>
+                    <div class="cta-buttons">
+                        <a href="https://www.writeitgreat.com/services" class="btn btn-secondary">Explore Our Services</a>
+                        <a href="mailto:hello@writeitgreat.com?subject=Proposal%20Consultation%20-%20{{ evaluation.submission_id }}" class="btn btn-outline">Schedule a Consultation</a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Submit Another -->
+                <div class="submit-another">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline">Submit Another Proposal</a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Write It Great LLC. All rights reserved.</p>
+            <p class="footer-links">
+                <a href="https://www.writeitgreat.com">Home</a>
+                <a href="https://www.writeitgreat.com/services">Services</a>
+                <a href="https://www.writeitgreat.com/about">About</a>
+                <a href="mailto:hello@writeitgreat.com">Contact</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

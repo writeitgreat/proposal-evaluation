@@ -1,0 +1,22 @@
+# Write It Great - Proposal Evaluation System
+# Python Dependencies
+
+# Web Framework
+Flask==3.0.0
+gunicorn==21.2.0
+
+# OpenAI
+openai==1.12.0
+
+# PDF Processing
+PyMuPDF==1.23.8
+
+# PDF Generation
+reportlab==4.0.8
+
+# HTTP Requests (for Mailchimp)
+requests==2.31.0
+
+# Utilities
+python-dotenv==1.0.0
+Werkzeug==3.0.1
