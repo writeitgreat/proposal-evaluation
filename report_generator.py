@@ -76,7 +76,7 @@ def create_styles():
     ))
     
     styles.add(ParagraphStyle(
-        name='BodyText',
+        name='CustomBody',
         parent=styles['Normal'],
         fontSize=10,
         textColor=BRAND_BLACK,
@@ -135,7 +135,7 @@ def generate_pdf_report(evaluation, output_path):
     
     # Header
     story.append(Paragraph("WRITE IT GREAT", styles['BrandTitle']))
-    story.append(Paragraph("Book Proposal Evaluation Report", styles['BodyText']))
+    story.append(Paragraph("Book Proposal Evaluation Report", styles['CustomBody']))
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=2, color=BRAND_GOLD))
     story.append(Spacer(1, 20))
@@ -197,7 +197,7 @@ def generate_pdf_report(evaluation, output_path):
     
     # Executive Summary
     story.append(Paragraph("EXECUTIVE SUMMARY", styles['SectionHeader']))
-    story.append(Paragraph(evaluation.get('executive_summary', 'No summary available.'), styles['BodyText']))
+    story.append(Paragraph(evaluation.get('executive_summary', 'No summary available.'), styles['CustomBody']))
     story.append(Spacer(1, 10))
     
     # Score Breakdown Table
@@ -281,14 +281,13 @@ def generate_pdf_report(evaluation, output_path):
         story.append(Paragraph(feedback.get('summary', 'No summary available.'), styles['BodyText']))
         
         strengths = feedback.get('strengths', [])
-        if strengths:
-            story.append(Paragraph("<b>Strengths:</b>", styles['BodyText']))
+        if strengths:story.append(Paragraph("<b>Strengths:</b>", styles['CustomBody']))
             for s in strengths[:3]:
                 story.append(Paragraph(f"• {s}", styles['BulletPoint']))
         
         gaps = feedback.get('gaps', [])
         if gaps:
-            story.append(Paragraph("<b>Areas for Improvement:</b>", styles['BodyText']))
+            story.append(Paragraph("<b>Areas for Improvement:</b>", styles['CustomBody']))
             for g in gaps[:3]:
                 story.append(Paragraph(f"• {g}", styles['BulletPoint']))
         
@@ -317,7 +316,7 @@ def generate_pdf_report(evaluation, output_path):
         story.append(Paragraph(
             "Our team of expert ghostwriters and literary consultants can help you transform your proposal "
             "into a publisher-ready submission. Schedule a free consultation to discuss your book project.",
-            styles['BodyText']
+            styles['CustomBody']
         ))
         story.append(Paragraph(
             "<b>Contact us: hello@writeitgreat.com</b>",
