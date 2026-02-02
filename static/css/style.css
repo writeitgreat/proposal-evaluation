@@ -906,3 +906,70 @@ body {
         padding: 0;
     }
 }
+/* ==================== Info Cards ==================== */
+.info-section {
+    margin-top: 50px;
+    padding: 40px 0;
+}
+
+.info-section h2 {
+    font-family: var(--font-heading);
+    font-size: 1.8rem;
+    text-align: center;
+    color: var(--brand-black);
+    margin-bottom: 32px;
+}
+
+.info-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.info-card {
+    background: var(--brand-white);
+    padding: 28px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.info-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--brand-primary);
+}
+
+.info-card .card-icon {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+    display: block;
+}
+
+.info-card h4 {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    color: var(--brand-black);
+}
+
+.info-card p {
+    font-size: 0.9rem;
+    color: var(--brand-text-light);
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.info-card .weight {
+    display: inline-block;
+    background: var(--brand-primary);
+    color: white;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
