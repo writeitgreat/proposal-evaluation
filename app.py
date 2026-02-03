@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 
 from evaluate import evaluate_proposal, extract_text_from_pdf
 from report_generator import generate_pdf_report
-from email_service import send_author_notification, send_team_notification
+from email_service import send_team_notification
 
 app = Flask(__name__)
 
@@ -23,8 +23,9 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
 ALLOWED_EXTENSIONS = {'pdf'}
 
-# Storage for reports (in production, use S3 or similar)
-REPORTS_DIR = tempfile.mkdtemp()
+# Use /tmp for storage - shared across Heroku workers
+REPORTS_DIR = '/tmp/wig_reports'
+os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 def allowed_file(filename):
@@ -37,23 +38,10 @@ def index():
     return render_template('index.html')
 
 
-# Note: Terms and NDA are displayed as modals in index.html
-# No separate pages needed
-
-
 @app.route('/api/evaluate', methods=['POST'])
 def evaluate():
     """
     Evaluate a book proposal submission.
-    
-    Expected form data:
-    - author_name: str
-    - author_email: str
-    - book_title: str
-    - proposal_type: 'full' | 'marketing_only' | 'no_marketing'
-    - agree_terms: 'on'
-    - agree_nda: 'on'
-    - proposal_file: PDF file
     """
     try:
         # Validate required fields
@@ -87,7 +75,7 @@ def evaluate():
         
         # Save uploaded file temporarily
         filename = secure_filename(file.filename)
-        temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}_{filename}")
+        temp_path = os.path.join('/tmp', f"{uuid.uuid4()}_{filename}")
         file.save(temp_path)
         
         try:
@@ -116,6 +104,9 @@ def evaluate():
             evaluation['proposal_type'] = proposal_type
             evaluation['submitted_at'] = datetime.utcnow().isoformat()
             
+            # Ensure reports directory exists
+            os.makedirs(REPORTS_DIR, exist_ok=True)
+            
             # Generate PDF report
             report_filename = f"{submission_id}_feedback.pdf"
             report_path = os.path.join(REPORTS_DIR, report_filename)
@@ -126,23 +117,24 @@ def evaluate():
             with open(eval_path, 'w') as f:
                 json.dump(evaluation, f, indent=2)
             
+            print(f"✅ Saved evaluation to: {eval_path}")
+            print(f"✅ Saved report to: {report_path}")
+            
             # Send emails
             try:
                 send_team_notification(evaluation, report_path)
-                # Note: We don't auto-send to author - they download directly
             except Exception as e:
                 print(f"Email notification failed: {e}")
                 # Don't fail the whole request if email fails
             
-            # Return success with download URL
+            # Return success with redirect URL
             return jsonify({
                 'success': True,
                 'submission_id': submission_id,
-                'tier': evaluation['tier'],
-                'total_score': evaluation['total_score'],
-                'executive_summary': evaluation['executive_summary'],
-                'download_url': url_for('download_report', submission_id=submission_id),
-                'scores': evaluation['scores']
+                'redirect_url': url_for('results', submission_id=submission_id),
+                'tier': evaluation.get('tier'),
+                'total_score': evaluation.get('total_score'),
+                'executive_summary': evaluation.get('executiveSummary', evaluation.get('executive_summary', ''))
             })
             
         finally:
@@ -162,6 +154,9 @@ def download_report(submission_id):
     """Download the PDF feedback report."""
     report_path = os.path.join(REPORTS_DIR, f"{submission_id}_feedback.pdf")
     
+    print(f"Looking for report at: {report_path}")
+    print(f"File exists: {os.path.exists(report_path)}")
+    
     if not os.path.exists(report_path):
         return jsonify({'error': 'Report not found'}), 404
     
@@ -178,6 +173,10 @@ def results(submission_id):
     """Results page showing evaluation summary."""
     eval_path = os.path.join(REPORTS_DIR, f"{submission_id}_data.json")
     
+    print(f"Looking for evaluation at: {eval_path}")
+    print(f"File exists: {os.path.exists(eval_path)}")
+    print(f"REPORTS_DIR contents: {os.listdir(REPORTS_DIR) if os.path.exists(REPORTS_DIR) else 'DIR NOT FOUND'}")
+    
     if not os.path.exists(eval_path):
         return render_template('error.html', message='Evaluation not found'), 404
     
@@ -190,7 +189,12 @@ def results(submission_id):
 @app.route('/health')
 def health():
     """Health check endpoint for Heroku."""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    return jsonify({
+        'status': 'healthy', 
+        'timestamp': datetime.utcnow().isoformat(),
+        'reports_dir': REPORTS_DIR,
+        'reports_dir_exists': os.path.exists(REPORTS_DIR)
+    })
 
 
 if __name__ == '__main__':
