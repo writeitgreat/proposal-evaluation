@@ -281,7 +281,8 @@ def generate_pdf_report(evaluation, output_path):
         story.append(Paragraph(feedback.get('summary', 'No summary available.'), styles['BodyText']))
         
         strengths = feedback.get('strengths', [])
-        if strengths:story.append(Paragraph("<b>Strengths:</b>", styles['CustomBody']))
+        if strengths:
+            story.append(Paragraph("<b>Strengths:</b>", styles['CustomBody']))
             for s in strengths[:3]:
                 story.append(Paragraph(f"• {s}", styles['BulletPoint']))
         
