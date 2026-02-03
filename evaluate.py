@@ -6,7 +6,6 @@ Uses OpenAI to evaluate book proposals with detailed analysis.
 
 import os
 import json
-import re
 import fitz  # PyMuPDF
 from openai import OpenAI
 
@@ -70,15 +69,25 @@ def get_weights_for_type(proposal_type):
         return FULL_WEIGHTS
 
 
+def get_score_value(score_data):
+    """Safely extract score value from various formats."""
+    if score_data is None:
+        return 0
+    if isinstance(score_data, (int, float)):
+        return score_data
+    if isinstance(score_data, dict):
+        return score_data.get('score', 0)
+    return 0
+
+
 def calculate_weighted_score(scores, proposal_type):
     """Calculate the weighted total score based on proposal type."""
     weights = get_weights_for_type(proposal_type)
     
     total = 0
     for category, weight in weights.items():
-        score = scores.get(category, 0)
-        if isinstance(score, dict):
-            score = score.get('score', 0)
+        raw_score = scores.get(category, 0)
+        score = get_score_value(raw_score)
         total += score * weight
     
     return round(total, 2)
@@ -163,15 +172,15 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
 
 {{
     "executiveSummary": "3-5 sentence summary of the proposal quality, strengths, and areas for improvement",
-    "redFlags": ["list any critical issues like no_platform, weak_credentials, poor_writing_quality, or empty array if none"],
+    "redFlags": [],
     "scores": {{
-        "marketing": {{"score": 0-100, "weight": 30}},
-        "overview": {{"score": 0-100, "weight": 20}},
-        "credentials": {{"score": 0-100, "weight": 15}},
-        "comps": {{"score": 0-100, "weight": 10}},
-        "writing": {{"score": 0-100, "weight": 15}},
-        "outline": {{"score": 0-100, "weight": 5}},
-        "completeness": {{"score": 0-100, "weight": 5}}
+        "marketing": 75,
+        "overview": 80,
+        "credentials": 70,
+        "comps": 65,
+        "writing": 78,
+        "outline": 72,
+        "completeness": 80
     }},
     "detailedAnalysis": {{
         "marketing": {{
@@ -237,14 +246,16 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
     ],
     "pathToATier": "2-3 sentences describing the specific path to reach A-tier status",
     "advanceEstimate": {{
-        "viable": true or false,
-        "lowRange": number or 0,
-        "highRange": number or 0,
-        "confidence": "Low or Medium or High",
+        "viable": true,
+        "lowRange": 25000,
+        "highRange": 75000,
+        "confidence": "Medium",
         "reasoning": "2-3 sentences explaining the estimate"
     }},
     "recommendedNextSteps": ["step 1", "step 2", "step 3"]
 }}
+
+IMPORTANT: For scores, use simple numbers (e.g., "marketing": 75), NOT objects.
 
 SCORING: 90-100 exceptional, 80-89 strong, 70-79 good, 60-69 promising, 50-59 weak, below 50 not ready.
 
@@ -270,38 +281,28 @@ Return ONLY the JSON object, nothing else."""
         evaluation = json.loads(cleaned_json)
     except json.JSONDecodeError as e:
         print(f"JSON Parse Error: {e}")
-        print(f"Response text: {response_text[:500]}...")
+        print(f"Response text: {response_text[:1000]}...")
         raise ValueError(f"Failed to parse evaluation response: {str(e)}")
     
-    # Extract scores for weighted calculation
-    scores_dict = {}
+    # Normalize scores to simple integers
     if 'scores' in evaluation:
-        for cat, data in evaluation['scores'].items():
-            if isinstance(data, dict):
-                scores_dict[cat] = data.get('score', 0)
-            else:
-                scores_dict[cat] = data
+        normalized_scores = {}
+        for cat, score_data in evaluation['scores'].items():
+            normalized_scores[cat] = get_score_value(score_data)
+        evaluation['scores'] = normalized_scores
     
     # Override scores based on proposal type
     if proposal_type == 'marketing_only':
         for category in ['overview', 'credentials', 'comps', 'writing', 'outline', 'completeness']:
-            scores_dict[category] = 0
-            if 'scores' in evaluation and category in evaluation['scores']:
-                if isinstance(evaluation['scores'][category], dict):
-                    evaluation['scores'][category]['score'] = 0
-                else:
-                    evaluation['scores'][category] = 0
+            if 'scores' in evaluation:
+                evaluation['scores'][category] = 0
                     
     elif proposal_type == 'no_marketing':
-        scores_dict['marketing'] = 0
-        if 'scores' in evaluation and 'marketing' in evaluation['scores']:
-            if isinstance(evaluation['scores']['marketing'], dict):
-                evaluation['scores']['marketing']['score'] = 0
-            else:
-                evaluation['scores']['marketing'] = 0
+        if 'scores' in evaluation:
+            evaluation['scores']['marketing'] = 0
     
     # Calculate final score and tier
-    evaluation['total_score'] = calculate_weighted_score(scores_dict, proposal_type)
+    evaluation['total_score'] = calculate_weighted_score(evaluation.get('scores', {}), proposal_type)
     evaluation['tier'] = determine_tier(evaluation['total_score'])
     evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
     evaluation['proposal_type'] = proposal_type
