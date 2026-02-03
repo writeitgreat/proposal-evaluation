@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 Book Proposal Evaluation Engine - Comprehensive Version
-Uses OpenAI to evaluate book proposals with detailed analysis, red flags, and actionable feedback.
+Uses OpenAI to evaluate book proposals with detailed analysis.
 """
 
 import os
 import json
+import re
 import fitz  # PyMuPDF
 from openai import OpenAI
 
@@ -14,16 +15,15 @@ client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # Scoring weights for full proposals
 FULL_WEIGHTS = {
-    'marketing': 0.30,      # 30%
-    'overview': 0.20,       # 20%
-    'credentials': 0.15,    # 15%
-    'comps': 0.10,          # 10%
-    'writing': 0.15,        # 15%
-    'outline': 0.05,        # 5%
-    'completeness': 0.05    # 5%
+    'marketing': 0.30,
+    'overview': 0.20,
+    'credentials': 0.15,
+    'comps': 0.10,
+    'writing': 0.15,
+    'outline': 0.05,
+    'completeness': 0.05
 }
 
-# For marketing_only: only marketing matters
 MARKETING_ONLY_WEIGHTS = {
     'marketing': 1.00,
     'overview': 0.00,
@@ -34,7 +34,6 @@ MARKETING_ONLY_WEIGHTS = {
     'completeness': 0.00
 }
 
-# For no_marketing: redistribute weights excluding marketing
 NO_MARKETING_WEIGHTS = {
     'marketing': 0.00,
     'overview': 0.29,
@@ -78,6 +77,8 @@ def calculate_weighted_score(scores, proposal_type):
     total = 0
     for category, weight in weights.items():
         score = scores.get(category, 0)
+        if isinstance(score, dict):
+            score = score.get('score', 0)
         total += score * weight
     
     return round(total, 2)
@@ -106,168 +107,148 @@ def get_tier_description(tier):
     return descriptions.get(tier, '')
 
 
+def clean_json_response(response_text):
+    """Clean and extract JSON from the response."""
+    text = response_text.strip()
+    
+    # Remove markdown code blocks
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    
+    if text.endswith("```"):
+        text = text[:-3]
+    
+    text = text.strip()
+    
+    # Find JSON object boundaries
+    start = text.find('{')
+    end = text.rfind('}')
+    
+    if start != -1 and end != -1 and end > start:
+        text = text[start:end+1]
+    
+    return text
+
+
 def evaluate_proposal(proposal_text, proposal_type, author_name, book_title):
     """
     Evaluate a book proposal using OpenAI with comprehensive analysis.
     """
     
-    # Determine which categories to evaluate based on proposal type
+    # Determine evaluation focus based on proposal type
     if proposal_type == 'marketing_only':
-        evaluation_focus = """
-You are evaluating ONLY the Marketing & Platform section of this proposal.
-All other categories should be scored as 0 since they were not submitted.
-Focus entirely on assessing the author's platform, marketing plan, and promotional capabilities.
-"""
+        evaluation_focus = "You are evaluating ONLY the Marketing & Platform section. Score all other categories as 0."
     elif proposal_type == 'no_marketing':
-        evaluation_focus = """
-This proposal does NOT include a Marketing section.
-Score the Marketing category as 0.
-Evaluate all other sections normally.
-"""
+        evaluation_focus = "This proposal does NOT include a Marketing section. Score Marketing as 0."
     else:
-        evaluation_focus = """
-This is a FULL proposal submission. Evaluate all categories comprehensively.
-"""
+        evaluation_focus = "This is a FULL proposal submission. Evaluate all categories."
 
-    system_prompt = """You are an elite literary agent with 25+ years of experience evaluating book proposals for major publishers. You have placed hundreds of books with advances ranging from $50,000 to $2 million+. Your evaluations are known for being thorough, actionable, and honest.
-
-Your evaluation style:
-- Be specific and cite examples from the actual proposal text
-- Provide actionable feedback that authors can implement immediately
-- Be encouraging but honest about weaknesses
-- Think like a publisher evaluating commercial viability"""
+    system_prompt = """You are an elite literary agent with 25+ years of experience evaluating book proposals. Your evaluations are thorough, actionable, and honest. Always respond with valid JSON only - no markdown, no explanations, just the JSON object."""
 
     user_prompt = f"""{evaluation_focus}
 
-Evaluate this book proposal comprehensively.
+Evaluate this book proposal and return a JSON object.
 
 AUTHOR: {author_name}
 BOOK TITLE: {book_title}
 
 PROPOSAL TEXT:
-{proposal_text[:80000]}
+{proposal_text[:60000]}
 
 ---
 
-Provide your evaluation as a JSON object with this EXACT structure:
+Return ONLY a valid JSON object with this structure (no markdown, no code blocks, just JSON):
 
 {{
-    "title": "{book_title}",
-    "author": "{author_name}",
-    "overallScore": <calculated weighted score 0-100>,
-    "tier": "<A, B, C, or D>",
-    "executiveSummary": "<3-5 sentence executive summary of the proposal's strengths and areas for improvement>",
-    
-    "redFlags": [
-        "<list any critical issues like: no_platform, weak_credentials, oversaturated_market, poor_writing_quality, incomplete_proposal, unrealistic_claims, no_clear_audience, derivative_concept>"
-    ],
-    
+    "executiveSummary": "3-5 sentence summary of the proposal quality, strengths, and areas for improvement",
+    "redFlags": ["list any critical issues like no_platform, weak_credentials, poor_writing_quality, or empty array if none"],
     "scores": {{
-        "marketing": {{"score": <0-100>, "weight": 30}},
-        "overview": {{"score": <0-100>, "weight": 20}},
-        "credentials": {{"score": <0-100>, "weight": 15}},
-        "comps": {{"score": <0-100>, "weight": 10}},
-        "writing": {{"score": <0-100>, "weight": 15}},
-        "outline": {{"score": <0-100>, "weight": 5}},
-        "completeness": {{"score": <0-100>, "weight": 5}}
+        "marketing": {{"score": 0-100, "weight": 30}},
+        "overview": {{"score": 0-100, "weight": 20}},
+        "credentials": {{"score": 0-100, "weight": 15}},
+        "comps": {{"score": 0-100, "weight": 10}},
+        "writing": {{"score": 0-100, "weight": 15}},
+        "outline": {{"score": 0-100, "weight": 5}},
+        "completeness": {{"score": 0-100, "weight": 5}}
     }},
-    
     "detailedAnalysis": {{
         "marketing": {{
-            "currentState": "<2-3 sentences describing current state of this section>",
-            "strengths": "<what's working well>",
-            "gaps": "<what's missing or weak>",
-            "exampleOfExcellence": "<specific example of what A-tier looks like for this category>",
-            "actionItems": ["<specific action 1>", "<specific action 2>", "<specific action 3>"]
+            "currentState": "2-3 sentences about current state",
+            "strengths": "what is working well",
+            "gaps": "what is missing or weak",
+            "exampleOfExcellence": "what A-tier looks like for this category",
+            "actionItems": ["action 1", "action 2", "action 3"]
         }},
         "overview": {{
-            "currentState": "<2-3 sentences>",
-            "strengths": "<what's working>",
-            "gaps": "<what's missing>",
-            "exampleOfExcellence": "<A-tier example>",
-            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+            "currentState": "2-3 sentences",
+            "strengths": "strengths",
+            "gaps": "gaps",
+            "exampleOfExcellence": "example",
+            "actionItems": ["action 1", "action 2"]
         }},
         "credentials": {{
-            "currentState": "<2-3 sentences>",
-            "strengths": "<what's working>",
-            "gaps": "<what's missing>",
-            "exampleOfExcellence": "<A-tier example>",
-            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+            "currentState": "2-3 sentences",
+            "strengths": "strengths",
+            "gaps": "gaps",
+            "exampleOfExcellence": "example",
+            "actionItems": ["action 1", "action 2"]
         }},
         "comps": {{
-            "currentState": "<2-3 sentences>",
-            "strengths": "<what's working>",
-            "gaps": "<what's missing>",
-            "exampleOfExcellence": "<A-tier example>",
-            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+            "currentState": "2-3 sentences",
+            "strengths": "strengths",
+            "gaps": "gaps",
+            "exampleOfExcellence": "example",
+            "actionItems": ["action 1", "action 2"]
         }},
         "writing": {{
-            "currentState": "<2-3 sentences>",
-            "strengths": "<what's working>",
-            "gaps": "<what's missing>",
-            "exampleOfExcellence": "<A-tier example>",
-            "actionItems": ["<action 1>", "<action 2>", "<action 3>"],
+            "currentState": "2-3 sentences",
+            "strengths": "strengths",
+            "gaps": "gaps",
+            "exampleOfExcellence": "example",
+            "actionItems": ["action 1", "action 2"],
             "writingExamples": {{
-                "strongPassage": "<quote a strong passage from the proposal if available>",
-                "improvementExample": "<quote a passage that could be improved and explain how>"
+                "strongPassage": "quote a strong passage from the proposal",
+                "improvementExample": "quote a passage that could be improved and explain how"
             }}
         }},
         "outline": {{
-            "currentState": "<2-3 sentences>",
-            "strengths": "<what's working>",
-            "gaps": "<what's missing>",
-            "exampleOfExcellence": "<A-tier example>",
-            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+            "currentState": "2-3 sentences",
+            "strengths": "strengths",
+            "gaps": "gaps",
+            "exampleOfExcellence": "example",
+            "actionItems": ["action 1", "action 2"]
         }},
         "completeness": {{
-            "currentState": "<2-3 sentences>",
-            "strengths": "<what's working>",
-            "gaps": "<what's missing>",
-            "exampleOfExcellence": "<A-tier example>",
-            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+            "currentState": "2-3 sentences",
+            "strengths": "strengths",
+            "gaps": "gaps",
+            "exampleOfExcellence": "example",
+            "actionItems": ["action 1", "action 2"]
         }}
     }},
-    
-    "strengths": ["<top strength 1>", "<top strength 2>", "<top strength 3>"],
-    "improvements": ["<top improvement 1>", "<top improvement 2>", "<top improvement 3>"],
-    
+    "strengths": ["top strength 1", "top strength 2", "top strength 3"],
+    "improvements": ["top improvement 1", "top improvement 2", "top improvement 3"],
     "priorityActionPlan": [
-        {{"priority": 1, "action": "<most important action>", "timeline": "<e.g., This week>", "impact": "<why this matters>"}},
-        {{"priority": 2, "action": "<second action>", "timeline": "<e.g., Next 2 weeks>", "impact": "<why this matters>"}},
-        {{"priority": 3, "action": "<third action>", "timeline": "<e.g., Next month>", "impact": "<why this matters>"}}
+        {{"priority": 1, "action": "most important action", "timeline": "This week", "impact": "why this matters"}},
+        {{"priority": 2, "action": "second action", "timeline": "Next 2 weeks", "impact": "why this matters"}},
+        {{"priority": 3, "action": "third action", "timeline": "Next month", "impact": "why this matters"}}
     ],
-    
-    "pathToATier": "<2-3 sentences describing the specific path this author needs to take to reach A-tier status>",
-    
+    "pathToATier": "2-3 sentences describing the specific path to reach A-tier status",
     "advanceEstimate": {{
-        "viable": <true or false>,
-        "lowRange": <number or 0>,
-        "highRange": <number or 0>,
-        "confidence": "<Low, Medium, or High>",
-        "reasoning": "<2-3 sentences explaining the estimate based on platform, market, and comparable titles>"
+        "viable": true or false,
+        "lowRange": number or 0,
+        "highRange": number or 0,
+        "confidence": "Low or Medium or High",
+        "reasoning": "2-3 sentences explaining the estimate"
     }},
-    
-    "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>"]
+    "recommendedNextSteps": ["step 1", "step 2", "step 3"]
 }}
 
-SCORING GUIDELINES:
-- 90-100: Exceptional, ready for top-tier publishers
-- 80-89: Strong, minor improvements needed  
-- 70-79: Good foundation, some gaps to address
-- 60-69: Promising but needs significant work
-- 50-59: Weak, major revisions required
-- Below 50: Not ready for submission
+SCORING: 90-100 exceptional, 80-89 strong, 70-79 good, 60-69 promising, 50-59 weak, below 50 not ready.
 
-RED FLAG RULES:
-- If "no_platform" is detected, cap Marketing score at 40
-- If "poor_writing_quality" is detected, cap Writing score at 50
-- If "incomplete_proposal" is detected, cap Completeness at 40
-
-{"Note: Score Marketing as 0 since it was not included." if proposal_type == 'no_marketing' else ""}
-{"Note: Score all non-Marketing categories as 0." if proposal_type == 'marketing_only' else ""}
-
-Return ONLY the JSON object, no other text.
-"""
+Return ONLY the JSON object, nothing else."""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -280,45 +261,19 @@ Return ONLY the JSON object, no other text.
     )
     
     # Parse the response
-    response_text = response.choices[0].message.content.strip()
+    response_text = response.choices[0].message.content
     
-    # Clean up potential markdown formatting
-    if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    if response_text.startswith("```"):
-        response_text = response_text[3:]
-    if response_text.endswith("```"):
-        response_text = response_text[:-3]
+    # Clean and parse JSON
+    cleaned_json = clean_json_response(response_text)
     
-    evaluation = json.loads(response_text.strip())
+    try:
+        evaluation = json.loads(cleaned_json)
+    except json.JSONDecodeError as e:
+        print(f"JSON Parse Error: {e}")
+        print(f"Response text: {response_text[:500]}...")
+        raise ValueError(f"Failed to parse evaluation response: {str(e)}")
     
-    # Override scores based on proposal type
-    if proposal_type == 'marketing_only':
-        for category in ['overview', 'credentials', 'comps', 'writing', 'outline', 'completeness']:
-            if 'scores' in evaluation and category in evaluation['scores']:
-                evaluation['scores'][category]['score'] = 0
-            if 'detailedAnalysis' in evaluation and category in evaluation['detailedAnalysis']:
-                evaluation['detailedAnalysis'][category] = {
-                    'currentState': 'Not submitted - Marketing only evaluation',
-                    'strengths': 'N/A',
-                    'gaps': 'Not included in submission',
-                    'exampleOfExcellence': 'N/A',
-                    'actionItems': []
-                }
-                
-    elif proposal_type == 'no_marketing':
-        if 'scores' in evaluation and 'marketing' in evaluation['scores']:
-            evaluation['scores']['marketing']['score'] = 0
-        if 'detailedAnalysis' in evaluation and 'marketing' in evaluation['detailedAnalysis']:
-            evaluation['detailedAnalysis']['marketing'] = {
-                'currentState': 'Not submitted - No marketing section included',
-                'strengths': 'N/A',
-                'gaps': 'Marketing section not included',
-                'exampleOfExcellence': 'N/A',
-                'actionItems': ['Consider adding a marketing section to strengthen your proposal']
-            }
-    
-    # Calculate weighted total score from individual scores
+    # Extract scores for weighted calculation
     scores_dict = {}
     if 'scores' in evaluation:
         for cat, data in evaluation['scores'].items():
@@ -327,22 +282,40 @@ Return ONLY the JSON object, no other text.
             else:
                 scores_dict[cat] = data
     
+    # Override scores based on proposal type
+    if proposal_type == 'marketing_only':
+        for category in ['overview', 'credentials', 'comps', 'writing', 'outline', 'completeness']:
+            scores_dict[category] = 0
+            if 'scores' in evaluation and category in evaluation['scores']:
+                if isinstance(evaluation['scores'][category], dict):
+                    evaluation['scores'][category]['score'] = 0
+                else:
+                    evaluation['scores'][category] = 0
+                    
+    elif proposal_type == 'no_marketing':
+        scores_dict['marketing'] = 0
+        if 'scores' in evaluation and 'marketing' in evaluation['scores']:
+            if isinstance(evaluation['scores']['marketing'], dict):
+                evaluation['scores']['marketing']['score'] = 0
+            else:
+                evaluation['scores']['marketing'] = 0
+    
+    # Calculate final score and tier
     evaluation['total_score'] = calculate_weighted_score(scores_dict, proposal_type)
     evaluation['tier'] = determine_tier(evaluation['total_score'])
     evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
     evaluation['proposal_type'] = proposal_type
     evaluation['weights_used'] = get_weights_for_type(proposal_type)
     
-    # Ensure backwards compatibility with old field names
-    if 'overallScore' not in evaluation:
-        evaluation['overallScore'] = evaluation['total_score']
-    if 'executive_summary' not in evaluation and 'executiveSummary' in evaluation:
+    # Backwards compatibility
+    evaluation['overallScore'] = evaluation['total_score']
+    if 'executiveSummary' in evaluation:
         evaluation['executive_summary'] = evaluation['executiveSummary']
-    if 'top_3_strengths' not in evaluation and 'strengths' in evaluation:
+    if 'strengths' in evaluation:
         evaluation['top_3_strengths'] = evaluation['strengths'][:3]
-    if 'top_3_improvements' not in evaluation and 'improvements' in evaluation:
+    if 'improvements' in evaluation:
         evaluation['top_3_improvements'] = evaluation['improvements'][:3]
-    if 'recommended_next_steps' not in evaluation and 'recommendedNextSteps' in evaluation:
+    if 'recommendedNextSteps' in evaluation:
         evaluation['recommended_next_steps'] = evaluation['recommendedNextSteps']
     
     return evaluation
