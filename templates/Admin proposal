@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block title %}{{ proposal.book_title }} - Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .back-link {
+        color: var(--text-secondary);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .back-link:hover {
+        color: var(--primary-light);
+    }
+    
+    .detail-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+    
+    @media (max-width: 968px) {
+        .detail-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .proposal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .tier-badge-lg {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        font-size: 1.25rem;
+        font-weight: 700;
+        border-radius: 12px;
+        color: white;
+    }
+    
+    .tier-A { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
+    .tier-B { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+    .tier-C { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+    .tier-D { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+    
+    .score-display {
+        text-align: right;
+    }
+    
+    .score-value {
+        font-size: 3rem;
+        font-weight: 700;
+        color: var(--primary-light);
+        line-height: 1;
+    }
+    
+    .info-row {
+        display: flex;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .info-label {
+        width: 130px;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+    }
+    
+    .info-value {
+        flex: 1;
+    }
+    
+    .section-card {
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    
+    .section-score {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--primary-light);
+    }
+    
+    .progress-bar {
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+    }
+    
+    .list-styled {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .list-styled li {
+        padding: 0.375rem 0 0.375rem 1.25rem;
+        position: relative;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+    
+    .list-styled.strengths li::before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #22c55e;
+    }
+    
+    .list-styled.improvements li::before {
+        content: "→";
+        position: absolute;
+        left: 0;
+        color: #f59e0b;
+    }
+    
+    .red-flag {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid #ef4444;
+        border-radius: 8px;
+        padding: 0.625rem 0.875rem;
+        margin-bottom: 0.5rem;
+        color: #ef4444;
+        font-size: 0.9rem;
+    }
+    
+    .action-item {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid #3b82f6;
+        border-radius: 8px;
+        padding: 0.625rem 0.875rem;
+        margin-bottom: 0.5rem;
+        color: #3b82f6;
+        font-size: 0.9rem;
+    }
+    
+    .status-form {
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    
+    .action-btn {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.75rem;
+    }
+    
+    textarea.form-input {
+        min-height: 100px;
+        resize: vertical;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Back to Dashboard</a>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert" style="margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 8px;
+                    {% if category == 'error' %}background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444;{% endif %}
+                    {% if category == 'success' %}background: rgba(34, 197, 94, 0.1); border: 1px solid #22c55e; color: #22c55e;{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <div class="detail-grid">
+        <!-- Main Content -->
+        <div>
+            <!-- Header -->
+            <div class="card">
+                <div class="proposal-header">
+                    <div>
+                        <span class="tier-badge-lg tier-{{ proposal.tier }}">{{ proposal.tier }}-Tier</span>
+                        <h1 style="margin-top: 1rem; font-size: 1.75rem;">{{ proposal.book_title }}</h1>
+                        <p style="color: var(--text-secondary);">by {{ proposal.author_name }}</p>
+                    </div>
+                    <div class="score-display">
+                        <div class="score-value">{{ proposal.total_score|int }}</div>
+                        <div style="color: var(--text-secondary);">/100</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Author Info -->
+            <div class="card">
+                <h3>Author Information</h3>
+                <div class="info-row">
+                    <span class="info-label">Name</span>
+                    <span class="info-value">{{ proposal.author_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">
+                        <a href="mailto:{{ proposal.author_email }}" style="color: var(--primary-light);">{{ proposal.author_email }}</a>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Submitted</span>
+                    <span class="info-value">{{ proposal.submitted_at.strftime('%B %d, %Y at %I:%M %p UTC') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Type</span>
+                    <span class="info-value">{{ proposal.proposal_type|replace('_', ' ')|title }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Report Sent</span>
+                    <span class="info-value">
+                        {% if proposal.report_sent_at %}
+                            ✅ {{ proposal.report_sent_at.strftime('%B %d, %Y at %I:%M %p UTC') }}
+                        {% else %}
+                            <span style="color: #ef4444;">Not sent</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Summary -->
+            {% if evaluation and evaluation.overall_summary %}
+            <div class="card">
+                <h3>Executive Summary</h3>
+                <p style="color: var(--text-secondary); white-space: pre-line;">{{ evaluation.overall_summary }}</p>
+            </div>
+            {% endif %}
+            
+            <!-- Section Scores -->
+            {% if evaluation and evaluation.scores %}
+            <div class="card">
+                <h3>Detailed Evaluation</h3>
+                
+                {% for category, data in evaluation.scores.items() %}
+                {% if data.score > 0 %}
+                <div class="section-card">
+                    <div class="section-header">
+                        <h4 style="margin: 0; font-size: 1rem;">{{ category }}</h4>
+                        <span class="section-score">{{ data.score }}/100</span>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ data.score }}%;"></div>
+                    </div>
+                    
+                    {% if data.analysis %}
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">{{ data.analysis }}</p>
+                    {% endif %}
+                    
+                    {% if data.strengths %}
+                    <p style="color: #22c55e; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.25rem;">Strengths</p>
+                    <ul class="list-styled strengths">
+                        {% for strength in data.strengths %}
+                        <li>{{ strength }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    
+                    {% if data.improvements %}
+                    <p style="color: #f59e0b; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; margin-top: 0.75rem; margin-bottom: 0.25rem;">Areas for Improvement</p>
+                    <ul class="list-styled improvements">
+                        {% for improvement in data.improvements %}
+                        <li>{{ improvement }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <!-- Red Flags -->
+            {% if evaluation and evaluation.red_flags %}
+            <div class="card">
+                <h3>⚠️ Red Flags</h3>
+                {% for flag in evaluation.red_flags %}
+                <div class="red-flag">{{ flag }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <!-- Action Items -->
+            {% if evaluation and evaluation.action_items %}
+            <div class="card">
+                <h3>📋 Action Items</h3>
+                {% for item in evaluation.action_items %}
+                <div class="action-item">{{ item }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <!-- Advance Estimate -->
+            {% if evaluation and evaluation.advance_estimate %}
+            <div class="card">
+                <h3>💰 Estimated Advance</h3>
+                <p style="font-size: 1.5rem; font-weight: 700; color: var(--primary-light);">
+                    ${{ "{:,}".format(evaluation.advance_estimate.low) }} - ${{ "{:,}".format(evaluation.advance_estimate.high) }}
+                </p>
+                <p style="color: var(--text-secondary);">Confidence: {{ evaluation.advance_estimate.confidence|capitalize }}</p>
+                {% if evaluation.advance_estimate.reasoning %}
+                <p style="color: var(--text-secondary); margin-top: 0.5rem; font-size: 0.9rem;">{{ evaluation.advance_estimate.reasoning }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar -->
+        <div>
+            <!-- Status Update -->
+            <div class="card">
+                <h3>Status & Actions</h3>
+                
+                <div class="status-form">
+                    <form method="POST" action="{{ url_for('admin_update_proposal', proposal_id=proposal.id) }}">
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-input">
+                                {% for value, label in status_options %}
+                                <option value="{{ value }}" {% if proposal.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Notes</label>
+                            <textarea name="status_notes" class="form-input" placeholder="Add notes...">{{ proposal.status_notes or '' }}</textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            Update Status
+                        </button>
+                    </form>
+                </div>
+                
+                <a href="{{ url_for('download_report', proposal_uuid=proposal.uuid) }}" class="btn btn-outline action-btn">
+                    📄 Download PDF
+                </a>
+                
+                <form method="POST" action="{{ url_for('admin_resend_report', proposal_id=proposal.id) }}">
+                    <button type="submit" class="btn btn-outline action-btn">
+                        📧 Resend to Author
+                    </button>
+                </form>
+                
+                <a href="mailto:{{ proposal.author_email }}?subject=Re: {{ proposal.book_title }}" class="btn btn-outline action-btn">
+                    ✉️ Email Author
+                </a>
+            </div>
+            
+            <!-- Quick Info -->
+            <div class="card">
+                <h3>Quick Info</h3>
+                <div class="info-row">
+                    <span class="info-label">Score</span>
+                    <span class="info-value"><strong>{{ proposal.total_score|int }}</strong>/100</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Tier</span>
+                    <span class="info-value">{{ proposal.tier_display }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Current Status</span>
+                    <span class="info-value">{{ proposal.status_display }}</span>
+                </div>
+                <div class="info-row" style="border-bottom: none;">
+                    <span class="info-label">File</span>
+                    <span class="info-value" style="word-break: break-all;">{{ proposal.original_filename or 'N/A' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
