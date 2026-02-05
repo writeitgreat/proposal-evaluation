@@ -1,268 +1,160 @@
 #!/usr/bin/env python3
 """
-Email Service for Write It Great Proposal Evaluations
-Uses Mailchimp for transactional emails.
+Email service for sending reports and notifications.
 """
 
 import os
-import requests
-import base64
-from datetime import datetime
-
-# Mailchimp configuration
-MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY')
-MAILCHIMP_SERVER = os.getenv('MAILCHIMP_SERVER', 'us1')  # e.g., us1, us21
-MAILCHIMP_FROM_EMAIL = os.getenv('MAILCHIMP_FROM_EMAIL', 'proposals@writeitgreat.com')
-MAILCHIMP_FROM_NAME = os.getenv('MAILCHIMP_FROM_NAME', 'Write It Great')
-
-# Team notification email
-TEAM_EMAIL = os.getenv('TEAM_EMAIL', 'team@writeitgreat.com')
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 
-def get_tier_emoji(tier):
-    """Get emoji for tier."""
-    return {'A': '🌟', 'B': '⭐', 'C': '📋', 'D': '📁'}.get(tier, '📄')
-
-
-def get_tier_action(tier):
-    """Get required action for tier."""
-    actions = {
-        'A': 'PRIORITY: Review and schedule strategy call within 24 hours',
-        'B': 'Review and schedule discovery call within 48 hours',
-        'C': 'Auto-processed - Feedback sent with coaching information',
-        'D': 'Auto-processed - Decline sent with feedback and resources'
-    }
-    return actions.get(tier, 'Review required')
-
-
-def send_team_notification(evaluation, report_path=None):
+def send_report_to_author(proposal, pdf_path):
     """
-    Send notification email to the Write It Great team.
+    Send the evaluation report to the author via email.
     
     Args:
-        evaluation: dict containing evaluation results
-        report_path: optional path to PDF report to attach
+        proposal: Proposal object with author_email, author_name, book_title, tier
+        pdf_path: Path to the PDF report file
+    
+    Returns:
+        bool: True if sent successfully, False otherwise
     """
-    if not MAILCHIMP_API_KEY:
-        print("Mailchimp not configured - skipping team notification")
-        _send_fallback_notification(evaluation)
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('SMTP_PORT', 587))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    from_email = os.getenv('FROM_EMAIL', 'hello@writeitgreat.com')
+    
+    if not smtp_user or not smtp_password:
+        print("Email not configured - skipping author notification")
         return False
     
-    tier = evaluation.get('tier', 'C')
-    emoji = get_tier_emoji(tier)
-    action = get_tier_action(tier)
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = proposal.author_email
+    msg['Subject'] = f"Your Book Proposal Evaluation - {proposal.book_title}"
     
-    subject = f"{emoji} [{tier}-Tier] New Proposal: {evaluation.get('book_title', 'Unknown')} by {evaluation.get('author_name', 'Unknown')}"
-    
-    # Build HTML email body
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #1a1a1a; }}
-            .header {{ background: #1a1a1a; color: white; padding: 20px; text-align: center; }}
-            .content {{ padding: 20px; }}
-            .tier-badge {{ 
-                display: inline-block; 
-                padding: 10px 20px; 
-                font-size: 24px; 
-                font-weight: bold; 
-                border-radius: 5px;
-                color: white;
-                background: {'#2e7d32' if tier == 'A' else '#1976d2' if tier == 'B' else '#f57c00' if tier == 'C' else '#d32f2f'};
-            }}
-            .score {{ font-size: 36px; font-weight: bold; color: #c9a962; }}
-            .action-box {{ 
-                background: {'#e8f5e9' if tier in ['A', 'B'] else '#fff3e0'}; 
-                border-left: 4px solid {'#2e7d32' if tier == 'A' else '#1976d2' if tier == 'B' else '#f57c00'};
-                padding: 15px; 
-                margin: 20px 0; 
-            }}
-            .info-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-            .info-table td {{ padding: 8px; border-bottom: 1px solid #eee; }}
-            .info-table td:first-child {{ font-weight: bold; width: 150px; }}
-            .scores-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-            .scores-table th, .scores-table td {{ padding: 10px; text-align: left; border: 1px solid #ddd; }}
-            .scores-table th {{ background: #1a1a1a; color: white; }}
-            .footer {{ background: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #666; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Write It Great</h1>
-            <p>New Book Proposal Submission</p>
-        </div>
-        
-        <div class="content">
-            <div style="text-align: center; margin: 20px 0;">
-                <span class="tier-badge">TIER {tier}</span>
-                <span class="score">{evaluation.get('total_score', 0)}/100</span>
-            </div>
-            
-            <div class="action-box">
-                <strong>⚡ Action Required:</strong> {action}
-            </div>
-            
-            <h2>Submission Details</h2>
-            <table class="info-table">
-                <tr><td>Submission ID</td><td>{evaluation.get('submission_id', 'N/A')}</td></tr>
-                <tr><td>Book Title</td><td>{evaluation.get('book_title', 'N/A')}</td></tr>
-                <tr><td>Author</td><td>{evaluation.get('author_name', 'N/A')}</td></tr>
-                <tr><td>Email</td><td><a href="mailto:{evaluation.get('author_email', '')}">{evaluation.get('author_email', 'N/A')}</a></td></tr>
-                <tr><td>Proposal Type</td><td>{evaluation.get('proposal_type', 'full').replace('_', ' ').title()}</td></tr>
-                <tr><td>Submitted</td><td>{datetime.now().strftime('%B %d, %Y at %I:%M %p')}</td></tr>
-            </table>
-            
-            <h2>Executive Summary</h2>
-            <p>{evaluation.get('executive_summary', 'No summary available.')}</p>
-            
-            <h2>Score Breakdown</h2>
-            <table class="scores-table">
-                <tr>
-                    <th>Category</th>
-                    <th>Score</th>
-                </tr>
-                <tr><td>Marketing & Platform</td><td>{evaluation.get('scores', {}).get('marketing', 0)}/100</td></tr>
-                <tr><td>Overview & Concept</td><td>{evaluation.get('scores', {}).get('overview', 0)}/100</td></tr>
-                <tr><td>Author Credentials</td><td>{evaluation.get('scores', {}).get('credentials', 0)}/100</td></tr>
-                <tr><td>Comparative Titles</td><td>{evaluation.get('scores', {}).get('comps', 0)}/100</td></tr>
-                <tr><td>Sample Writing</td><td>{evaluation.get('scores', {}).get('writing', 0)}/100</td></tr>
-                <tr><td>Book Outline</td><td>{evaluation.get('scores', {}).get('outline', 0)}/100</td></tr>
-                <tr><td>Completeness</td><td>{evaluation.get('scores', {}).get('completeness', 0)}/100</td></tr>
-            </table>
-            
-            <h2>Top Strengths</h2>
-            <ul>
-                {''.join(f'<li>{s}</li>' for s in evaluation.get('top_3_strengths', ['No strengths identified']))}
-            </ul>
-            
-            <h2>Key Improvements Needed</h2>
-            <ul>
-                {''.join(f'<li>{i}</li>' for i in evaluation.get('top_3_improvements', ['No improvements identified']))}
-            </ul>
-            
-            <h2>Recommended Next Steps</h2>
-            <ol>
-                {''.join(f'<li>{s}</li>' for s in evaluation.get('recommended_next_steps', ['Review the full feedback report']))}
-            </ol>
-            
-            <p style="margin-top: 30px;">
-                <strong>Note:</strong> The full PDF feedback report is attached to this email.
-            </p>
-        </div>
-        
-        <div class="footer">
-            <p>© {datetime.now().year} Write It Great LLC. All rights reserved.</p>
-            <p>This is an internal notification. Do not forward outside the organization.</p>
-        </div>
-    </body>
-    </html>
-    """
-    
-    # Plain text version
-    text_body = f"""
-WRITE IT GREAT - NEW PROPOSAL SUBMISSION
-========================================
+    # Email body based on tier
+    if proposal.tier in ['A', 'B']:
+        tier_message = """
+We're excited to share that your proposal shows strong potential! Based on our evaluation, 
+we believe your book has what it takes to capture publisher interest.
 
-TIER {tier} | Score: {evaluation.get('total_score', 0)}/100
+Our team will be reaching out shortly to discuss next steps and how we can help you 
+move forward in your publishing journey.
+"""
+    else:
+        tier_message = """
+Thank you for submitting your proposal. We've completed our evaluation and have 
+attached a detailed report with our findings.
 
-ACTION REQUIRED: {action}
-
-SUBMISSION DETAILS
-------------------
-Submission ID: {evaluation.get('submission_id', 'N/A')}
-Book Title: {evaluation.get('book_title', 'N/A')}
-Author: {evaluation.get('author_name', 'N/A')}
-Email: {evaluation.get('author_email', 'N/A')}
-Proposal Type: {evaluation.get('proposal_type', 'full').replace('_', ' ').title()}
-Submitted: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
-
-EXECUTIVE SUMMARY
------------------
-{evaluation.get('executive_summary', 'No summary available.')}
-
-TOP STRENGTHS
--------------
-{chr(10).join(f'• {s}' for s in evaluation.get('top_3_strengths', ['No strengths identified']))}
-
-KEY IMPROVEMENTS NEEDED
------------------------
-{chr(10).join(f'• {i}' for i in evaluation.get('top_3_improvements', ['No improvements identified']))}
-
----
-© {datetime.now().year} Write It Great LLC. Internal use only.
+The report includes specific action items and areas for improvement that could 
+strengthen your proposal. We encourage you to review our feedback carefully.
 """
     
-    # Prepare attachment if report exists
-    attachments = []
-    if report_path and os.path.exists(report_path):
-        with open(report_path, 'rb') as f:
-            content = base64.b64encode(f.read()).decode('utf-8')
-            attachments.append({
-                'type': 'application/pdf',
-                'name': f"Proposal_Feedback_{evaluation.get('submission_id', 'report')}.pdf",
-                'content': content
-            })
+    body = f"""Dear {proposal.author_name},
+
+Thank you for submitting your book proposal "{proposal.book_title}" to Write It Great LLC.
+
+{tier_message}
+
+Please find your detailed evaluation report attached to this email.
+
+If you have any questions about the evaluation, feel free to reply to this email.
+
+Best regards,
+The Write It Great Team
+
+---
+Write It Great LLC
+www.writeitgreat.com
+"""
     
-    # Send via Mailchimp Transactional (Mandrill) API
+    msg.attach(MIMEText(body, 'plain'))
+    
+    # Attach PDF
     try:
-        # For Mailchimp Transactional/Mandrill
-        url = f"https://mandrillapp.com/api/1.0/messages/send.json"
-        
-        payload = {
-            "key": MAILCHIMP_API_KEY,
-            "message": {
-                "html": html_body,
-                "text": text_body,
-                "subject": subject,
-                "from_email": MAILCHIMP_FROM_EMAIL,
-                "from_name": MAILCHIMP_FROM_NAME,
-                "to": [
-                    {"email": TEAM_EMAIL, "name": "Write It Great Team", "type": "to"}
-                ],
-                "attachments": attachments,
-                "tags": ["proposal-evaluation", f"tier-{tier.lower()}"],
-            }
-        }
-        
-        response = requests.post(url, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            print(f"✅ Team notification sent successfully to {TEAM_EMAIL}")
-            return True
-        else:
-            print(f"❌ Failed to send email: {response.status_code} - {response.text}")
-            _send_fallback_notification(evaluation)
-            return False
-            
+        with open(pdf_path, 'rb') as f:
+            pdf_attachment = MIMEApplication(f.read(), _subtype='pdf')
+            safe_title = proposal.book_title.replace(' ', '_').replace('/', '-')[:50]
+            pdf_attachment.add_header('Content-Disposition', 'attachment', 
+                                      filename=f"Evaluation_Report_{safe_title}.pdf")
+            msg.attach(pdf_attachment)
     except Exception as e:
-        print(f"❌ Email error: {e}")
-        _send_fallback_notification(evaluation)
+        print(f"Error attaching PDF: {e}")
+        return False
+    
+    try:
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(from_email, proposal.author_email, msg.as_string())
+        server.quit()
+        print(f"Report sent to {proposal.author_email}")
+        return True
+    except Exception as e:
+        print(f"Error sending email to author: {e}")
         return False
 
 
-def send_author_notification(evaluation, report_url):
+def send_team_notification(proposal):
     """
-    Send notification email to the author.
-    Note: Currently authors download directly from the results page.
-    This function can be used for follow-up emails.
+    Send notification to team about new proposal.
+    
+    Args:
+        proposal: Proposal object with all fields
     """
-    # Implementation for author emails if needed
-    pass
+    team_emails = os.getenv('TEAM_EMAILS', '').split(',')
+    team_emails = [e.strip() for e in team_emails if e.strip()]
+    
+    if not team_emails:
+        print("No team emails configured")
+        return
+    
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('SMTP_PORT', 587))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    from_email = os.getenv('FROM_EMAIL', 'hello@writeitgreat.com')
+    
+    if not smtp_user or not smtp_password:
+        print("Email not configured - skipping team notification")
+        return
+    
+    tier_emoji = {'A': '🟢', 'B': '🔵', 'C': '🟡', 'D': '🔴'}.get(proposal.tier, '⚪')
+    
+    subject = f"{tier_emoji} New {proposal.tier}-Tier Proposal: {proposal.book_title}"
+    
+    app_url = os.getenv('APP_URL', 'https://your-app.herokuapp.com')
+    
+    body = f"""New Book Proposal Submitted
 
+Author: {proposal.author_name}
+Email: {proposal.author_email}
+Title: {proposal.book_title}
 
-def _send_fallback_notification(evaluation):
-    """Print notification to console as fallback when email fails."""
-    tier = evaluation.get('tier', 'C')
-    print("\n" + "="*60)
-    print(f"📧 TEAM NOTIFICATION (Email not configured)")
-    print("="*60)
-    print(f"Tier: {tier} | Score: {evaluation.get('total_score', 0)}/100")
-    print(f"Book: {evaluation.get('book_title', 'N/A')}")
-    print(f"Author: {evaluation.get('author_name', 'N/A')} ({evaluation.get('author_email', 'N/A')})")
-    print(f"Type: {evaluation.get('proposal_type', 'full')}")
-    print(f"ID: {evaluation.get('submission_id', 'N/A')}")
-    print("-"*60)
-    print(f"Summary: {evaluation.get('executive_summary', 'N/A')[:200]}...")
-    print("="*60 + "\n")
+Tier: {proposal.tier} ({proposal.total_score:.0f}/100)
+Type: {proposal.proposal_type}
+
+Submitted: {proposal.submitted_at.strftime('%Y-%m-%d %H:%M UTC')}
+
+View in admin dashboard: {app_url}/admin/proposal/{proposal.id}
+"""
+    
+    for email in team_emails:
+        try:
+            msg = MIMEText(body)
+            msg['From'] = from_email
+            msg['To'] = email
+            msg['Subject'] = subject
+            
+            server = smtplib.SMTP(smtp_host, smtp_port)
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(from_email, email, msg.as_string())
+            server.quit()
+            print(f"Team notification sent to {email}")
+        except Exception as e:
+            print(f"Error sending team notification to {email}: {e}")
