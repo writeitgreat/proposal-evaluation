@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .admin-nav a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        margin-left: 1.5rem;
+    }
+    
+    .admin-nav a:hover {
+        color: var(--primary-light);
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-light);
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+    
+    .filters-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .filters-bar .form-input {
+        width: auto;
+        min-width: 150px;
+        padding: 0.625rem 1rem;
+    }
+    
+    .search-input {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .proposals-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .proposals-table th,
+    .proposals-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .proposals-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .proposals-table tbody tr:hover {
+        background: rgba(107, 33, 168, 0.1);
+    }
+    
+    .tier-badge-sm {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border-radius: 6px;
+    }
+    
+    .tier-A { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .tier-B { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .tier-C { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .tier-D { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        white-space: nowrap;
+    }
+    
+    .proposal-link {
+        color: var(--text-primary);
+        text-decoration: none;
+        font-weight: 500;
+    }
+    
+    .proposal-link:hover {
+        color: var(--primary-light);
+    }
+    
+    .email-link {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 0.875rem;
+    }
+    
+    .email-link:hover {
+        color: var(--primary-light);
+    }
+    
+    .date-cell {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+    
+    @media (max-width: 968px) {
+        .proposals-table {
+            display: block;
+            overflow-x: auto;
+        }
+        
+        .admin-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="admin-header">
+        <div>
+            <h1>Proposal Dashboard</h1>
+            <p style="color: var(--text-secondary);">Manage all submitted book proposals</p>
+        </div>
+        <nav class="admin-nav">
+            <a href="{{ url_for('index') }}">View Form</a>
+            <a href="{{ url_for('admin_logout') }}">Logout</a>
+        </nav>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert" style="margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 8px;
+                    {% if category == 'error' %}background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444;{% endif %}
+                    {% if category == 'success' %}background: rgba(34, 197, 94, 0.1); border: 1px solid #22c55e; color: #22c55e;{% endif %}
+                    {% if category == 'info' %}background: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; color: #3b82f6;{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total }}</div>
+            <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #a855f7;">{{ stats.new }}</div>
+            <div class="stat-label">New</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #22c55e;">{{ stats.a_tier }}</div>
+            <div class="stat-label">A-Tier</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #3b82f6;">{{ stats.b_tier }}</div>
+            <div class="stat-label">B-Tier</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #f59e0b;">{{ stats.c_tier }}</div>
+            <div class="stat-label">C-Tier</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #f59e0b;">{{ stats.shopping }}</div>
+            <div class="stat-label">Shopping</div>
+        </div>
+    </div>
+    
+    <!-- Filters & Table -->
+    <div class="card">
+        <form method="GET" class="filters-bar">
+            <input type="text" name="search" class="form-input search-input" 
+                   placeholder="Search author, title, or email..." 
+                   value="{{ search }}">
+            
+            <select name="tier" class="form-input">
+                <option value="">All Tiers</option>
+                <option value="A" {% if tier_filter == 'A' %}selected{% endif %}>A-Tier</option>
+                <option value="B" {% if tier_filter == 'B' %}selected{% endif %}>B-Tier</option>
+                <option value="C" {% if tier_filter == 'C' %}selected{% endif %}>C-Tier</option>
+                <option value="D" {% if tier_filter == 'D' %}selected{% endif %}>D-Tier</option>
+            </select>
+            
+            <select name="status" class="form-input">
+                <option value="">All Statuses</option>
+                {% for value, label in status_options %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            
+            <button type="submit" class="btn btn-primary">Filter</button>
+            
+            {% if search or tier_filter or status_filter %}
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline">Clear</a>
+            {% endif %}
+        </form>
+        
+        {% if proposals %}
+        <table class="proposals-table">
+            <thead>
+                <tr>
+                    <th>Tier</th>
+                    <th>Title / Author</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Email Sent</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for proposal in proposals %}
+                <tr>
+                    <td>
+                        <span class="tier-badge-sm tier-{{ proposal.tier }}">{{ proposal.tier }}</span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin_proposal_detail', proposal_id=proposal.id) }}" class="proposal-link">
+                            {{ proposal.book_title|truncate(40) }}
+                        </a>
+                        <br>
+                        <a href="mailto:{{ proposal.author_email }}" class="email-link">
+                            {{ proposal.author_name }}
+                        </a>
+                    </td>
+                    <td>
+                        <strong>{{ proposal.total_score|int }}</strong>/100
+                    </td>
+                    <td>
+                        <span class="status-badge">{{ proposal.status_display }}</span>
+                    </td>
+                    <td class="date-cell">
+                        {{ proposal.submitted_at.strftime('%b %d, %Y') }}
+                    </td>
+                    <td class="date-cell">
+                        {% if proposal.report_sent_at %}
+                            ✅ {{ proposal.report_sent_at.strftime('%b %d') }}
+                        {% else %}
+                            <span style="color: #ef4444;">Not sent</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <p>No proposals found{% if search or tier_filter or status_filter %} matching your filters{% endif %}.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
