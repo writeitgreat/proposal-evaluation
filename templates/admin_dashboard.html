@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Write It Great{% endblock %}
+{% block content %}
+<section class="dashboard-header">
+    <div class="container">
+        <h1>Proposal Dashboard</h1>
+        <p>Welcome back! Here's an overview of all book proposals.</p>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-number">{{ stats.total }}</div><div class="stat-label">Total</div></div>
+            <div class="stat-card"><div class="stat-number">{{ stats.a_tier }}</div><div class="stat-label">A-Tier</div></div>
+            <div class="stat-card"><div class="stat-number">{{ stats.b_tier }}</div><div class="stat-label">B-Tier</div></div>
+            <div class="stat-card"><div class="stat-number">{{ stats.c_tier }}</div><div class="stat-label">C-Tier</div></div>
+            <div class="stat-card"><div class="stat-number">{{ stats.d_tier }}</div><div class="stat-label">D-Tier</div></div>
+            <div class="stat-card"><div class="stat-number">{{ stats.submitted }}</div><div class="stat-label">New</div></div>
+            <div class="stat-card"><div class="stat-number">{{ stats.shopping }}</div><div class="stat-label">Shopping</div></div>
+        </div>
+    </div>
+</section>
+
+<form method="GET" class="filters-bar">
+    <div class="filter-group">
+        <label for="search">Search:</label>
+        <input type="text" id="search" name="search" value="{{ current_filters.search }}" placeholder="Name, title, email...">
+    </div>
+    <div class="filter-group">
+        <label for="tier">Tier:</label>
+        <select id="tier" name="tier">
+            <option value="">All</option>
+            <option value="A" {% if current_filters.tier == 'A' %}selected{% endif %}>A-Tier</option>
+            <option value="B" {% if current_filters.tier == 'B' %}selected{% endif %}>B-Tier</option>
+            <option value="C" {% if current_filters.tier == 'C' %}selected{% endif %}>C-Tier</option>
+            <option value="D" {% if current_filters.tier == 'D' %}selected{% endif %}>D-Tier</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label for="status">Status:</label>
+        <select id="status" name="status">
+            <option value="">All</option>
+            {% for value, label in status_options %}<option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-outline" style="padding: 0.5rem 1rem;">Filter</button>
+    <a href="{{ url_for('admin_dashboard') }}" style="padding: 0.5rem 1rem; color: var(--gray-600);">Clear</a>
+</form>
+
+<div class="container" style="padding: 0;">
+    {% if proposals.items %}
+    <table class="proposals-table">
+        <thead>
+            <tr><th>Submitted</th><th>Author</th><th>Book Title</th><th>Tier</th><th>Score</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+            {% for p in proposals.items %}
+            <tr>
+                <td><span class="submitted-date">{{ p.submitted_at.strftime('%b %d, %Y') }}</span></td>
+                <td class="author-cell"><div class="author-name">{{ p.author_name }}</div><div class="author-email">{{ p.author_email }}</div></td>
+                <td class="title-cell"><div class="book-title">{{ p.book_title[:50] }}{% if p.book_title|length > 50 %}...{% endif %}</div></td>
+                <td><span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span></td>
+                <td><strong>{{ p.overall_score|round|int }}/100</strong></td>
+                <td><span class="status-badge {{ p.status }}">{{ p.status|replace('_', ' ')|title }}</span></td>
+                <td><a href="{{ url_for('admin_proposal_detail', submission_id=p.submission_id) }}" class="view-link">View →</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if proposals.pages > 1 %}
+    <div class="pagination">
+        {% if proposals.has_prev %}<a href="{{ url_for('admin_dashboard', page=proposals.prev_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search) }}">← Prev</a>{% endif %}
+        {% for page_num in proposals.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}<a href="{{ url_for('admin_dashboard', page=page_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search) }}" {% if page_num == proposals.page %}class="active"{% endif %}>{{ page_num }}</a>{% else %}<span>...</span>{% endif %}
+        {% endfor %}
+        {% if proposals.has_next %}<a href="{{ url_for('admin_dashboard', page=proposals.next_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search) }}">Next →</a>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state"><h3>No proposals found</h3><p>Proposals will appear here once authors submit them.</p></div>
+    {% endif %}
+</div>
+{% endblock %}

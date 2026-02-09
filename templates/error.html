@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Error - Write It Great{% endblock %}
+{% block content %}
+<div class="error-container">
+    <div>
+        <div class="error-code">{{ error_code }}</div>
+        <h2 style="margin-bottom: 1rem;">{{ error_message }}</h2>
+        <p style="color: var(--gray-500); margin-bottom: 2rem;">We encountered an error processing your request.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Go Home</a>
+    </div>
+</div>
+{% endblock %}
