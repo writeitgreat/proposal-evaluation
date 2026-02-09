@@ -10,6 +10,7 @@ import uuid
 import tempfile
 import smtplib
 import traceback
+import threading
 from io import BytesIO
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -250,7 +251,11 @@ def generate_pdf_report(proposal):
                 cat['score'] = 0
 
     html = render_template('report_pdf.html', proposal=proposal, evaluation=evaluation)
-    pdf = HTML(string=html, base_url=request.host_url).write_pdf()
+    try:
+        base_url = request.host_url
+    except RuntimeError:
+        base_url = os.environ.get('APP_URL', 'http://localhost:5000') + '/'
+    pdf = HTML(string=html, base_url=base_url).write_pdf()
     return pdf
 
 
@@ -372,6 +377,56 @@ def send_team_notification(proposal):
 
 
 # ============================================================================
+# BACKGROUND PROCESSING
+# ============================================================================
+
+def process_evaluation_background(app_obj, submission_id, proposal_text, proposal_type):
+    """Run OpenAI evaluation and email notifications in a background thread"""
+    with app_obj.app_context():
+        try:
+            proposal = Proposal.query.filter_by(submission_id=submission_id).first()
+            if not proposal:
+                print(f"Background eval: proposal {submission_id} not found")
+                return
+
+            evaluation = evaluate_proposal(proposal_text, proposal_type)
+            if not evaluation:
+                proposal.status = 'error'
+                db.session.commit()
+                print(f"Background eval: OpenAI evaluation failed for {submission_id}")
+                return
+
+            proposal.tier = evaluation.get('tier', 'C')
+            proposal.overall_score = evaluation.get('overall_score', 50)
+            proposal.evaluation_json = json.dumps(evaluation)
+            proposal.status = 'submitted'
+            db.session.commit()
+
+            # Send emails
+            try:
+                if send_author_notification(proposal):
+                    proposal.author_email_sent = True
+                if send_team_notification(proposal):
+                    proposal.team_email_sent = True
+                db.session.commit()
+            except Exception as email_error:
+                print(f"Email error (non-fatal): {email_error}")
+
+            print(f"Background eval: completed for {submission_id}")
+
+        except Exception as e:
+            print(f"Background eval error for {submission_id}: {e}")
+            traceback.print_exc()
+            try:
+                proposal = Proposal.query.filter_by(submission_id=submission_id).first()
+                if proposal:
+                    proposal.status = 'error'
+                    db.session.commit()
+            except Exception:
+                pass
+
+
+# ============================================================================
 # PUBLIC ROUTES
 # ============================================================================
 
@@ -389,14 +444,14 @@ def api_evaluate():
         author_email = request.form.get('author_email', '').strip()
         book_title = request.form.get('book_title', '').strip()
         proposal_type = request.form.get('proposal_type', 'full')
-        
+
         if not all([author_name, author_email, book_title]):
             return jsonify({'success': False, 'error': 'Please fill in all required fields.'})
-        
+
         file = request.files.get('proposal_file')
         if not file or file.filename == '':
             return jsonify({'success': False, 'error': 'Please upload your proposal document.'})
-        
+
         filename = secure_filename(file.filename).lower()
         if filename.endswith('.pdf'):
             proposal_text = extract_text_from_pdf(file)
@@ -404,14 +459,11 @@ def api_evaluate():
             proposal_text = extract_text_from_docx(file)
         else:
             return jsonify({'success': False, 'error': 'Please upload a PDF or Word document.'})
-        
+
         if len(proposal_text.strip()) < 500:
             return jsonify({'success': False, 'error': 'Could not extract sufficient text from document.'})
-        
-        evaluation = evaluate_proposal(proposal_text, proposal_type)
-        if not evaluation:
-            return jsonify({'success': False, 'error': 'Error evaluating proposal. Please try again.'})
-        
+
+        # Save proposal immediately with 'processing' status
         proposal = Proposal(
             submission_id=generate_submission_id(),
             author_name=author_name,
@@ -419,42 +471,49 @@ def api_evaluate():
             book_title=book_title,
             proposal_type=proposal_type,
             ownership_confirmed=True,
-            tier=evaluation.get('tier', 'C'),
-            overall_score=evaluation.get('overall_score', 50),
-            evaluation_json=json.dumps(evaluation),
             proposal_text=proposal_text[:50000],
-            status='submitted'
+            status='processing'
         )
-        
+
         db.session.add(proposal)
         db.session.commit()
-        
-        try:
-            if send_author_notification(proposal):
-                proposal.author_email_sent = True
-            if send_team_notification(proposal):
-                proposal.team_email_sent = True
-            db.session.commit()
-        except Exception as email_error:
-            print(f"Email error (non-fatal): {email_error}")
-        
+
+        # Run evaluation in background thread to avoid Heroku 30s timeout
+        thread = threading.Thread(
+            target=process_evaluation_background,
+            args=(app._get_current_object(), proposal.submission_id, proposal_text, proposal_type)
+        )
+        thread.daemon = True
+        thread.start()
+
         return jsonify({
             'success': True,
             'proposal_id': proposal.submission_id
         })
-        
+
     except Exception as e:
         print(f"Error: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': 'An unexpected error occurred. Please try again.'})
 
 
+@app.route('/api/status/<submission_id>')
+def check_status(submission_id):
+    """Check evaluation status (for polling from results page)"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    return jsonify({
+        'status': proposal.status,
+        'ready': proposal.status not in ('processing',)
+    })
+
+
 @app.route('/results/<submission_id>')
 def results(submission_id):
     """Public results page for authors"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    processing = proposal.status == 'processing'
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
-    return render_template('results.html', proposal=proposal, evaluation=evaluation)
+    return render_template('results.html', proposal=proposal, evaluation=evaluation, processing=processing)
 
 
 @app.route('/download/<submission_id>')

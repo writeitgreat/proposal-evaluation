@@ -1,5 +1,71 @@
 {% extends "base.html" %}
 {% block title %}Evaluation Results - {{ proposal.book_title }}{% endblock %}
+
+{% block extra_css %}
+{% if processing %}
+.processing-card {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+.processing-card .spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid var(--gold-light);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1.5rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.processing-card h2 {
+    color: var(--primary);
+    margin-bottom: 0.75rem;
+}
+.processing-card p {
+    color: var(--gray-600);
+    max-width: 400px;
+    margin: 0 auto;
+}
+.processing-steps {
+    margin-top: 2rem;
+    text-align: left;
+    max-width: 350px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.processing-steps .step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    color: var(--gray-500);
+    font-size: 0.9375rem;
+}
+.processing-steps .step.active {
+    color: var(--primary);
+    font-weight: 600;
+}
+.processing-steps .step.done {
+    color: var(--success);
+}
+{% endif %}
+
+{% if proposal.status == 'error' %}
+.error-card {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+.error-card h2 {
+    color: var(--error);
+    margin-bottom: 1rem;
+}
+.error-card p {
+    color: var(--gray-600);
+    margin-bottom: 1.5rem;
+}
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <section class="results-header">
     <h1>{{ proposal.book_title }}</h1>
@@ -7,6 +73,28 @@
 </section>
 
 <div class="container results-container">
+    {% if processing %}
+    <div class="card processing-card" id="processing-card">
+        <div class="spinner"></div>
+        <h2>Evaluating Your Proposal...</h2>
+        <p>Our AI is carefully analyzing your book proposal. This typically takes 30-60 seconds.</p>
+        <div class="processing-steps">
+            <div class="step done">&#10003; Document uploaded successfully</div>
+            <div class="step done">&#10003; Text extracted from document</div>
+            <div class="step active">&#9679; Running AI evaluation...</div>
+            <div class="step">&#9675; Generating detailed report</div>
+            <div class="step">&#9675; Sending email notification</div>
+        </div>
+    </div>
+
+    {% elif proposal.status == 'error' %}
+    <div class="card error-card">
+        <h2>Evaluation Error</h2>
+        <p>We encountered an issue while evaluating your proposal. Please try submitting again.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Try Again</a>
+    </div>
+
+    {% else %}
     <div class="card tier-{{ (proposal.tier or 'c')|lower }}">
         {% if proposal.author_email_sent %}
         <div class="email-notice">
@@ -97,5 +185,34 @@
             <a href="{{ url_for('download_pdf', submission_id=proposal.submission_id) }}" class="btn btn-primary">Download PDF Report</a>
         </div>
     </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if processing %}
+<script>
+(function() {
+    var pollInterval = 3000;
+    var statusUrl = "{{ url_for('check_status', submission_id=proposal.submission_id) }}";
+
+    function checkStatus() {
+        fetch(statusUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ready) {
+                    window.location.reload();
+                } else {
+                    setTimeout(checkStatus, pollInterval);
+                }
+            })
+            .catch(function() {
+                setTimeout(checkStatus, pollInterval);
+            });
+    }
+
+    setTimeout(checkStatus, pollInterval);
+})();
+</script>
+{% endif %}
 {% endblock %}
