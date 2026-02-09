@@ -99,7 +99,7 @@ class Proposal(db.Model):
     
     # Submission details
     proposal_type = db.Column(db.String(50), default='full')  # full, marketing_only, no_marketing
-    ownership_confirmed = db.Column(db.Boolean, default=False)
+    ownership_confirmed = db.Column(db.Boolean, default=True)
     
     # Evaluation results
     tier = db.Column(db.String(10))  # A, B, C, D
@@ -422,14 +422,10 @@ def api_evaluate():
         author_email = request.form.get('author_email', '').strip()
         book_title = request.form.get('book_title', '').strip()
         proposal_type = request.form.get('proposal_type', 'full')
-        ownership_confirmed = request.form.get('ownership_confirmed') == 'on'
         
         # Validate required fields
         if not all([author_name, author_email, book_title]):
             return jsonify({'success': False, 'error': 'Please fill in all required fields.'})
-        
-        if not ownership_confirmed:
-            return jsonify({'success': False, 'error': 'Please confirm that you own the rights to this work.'})
         
         # Get uploaded file
         file = request.files.get('proposal_file')
@@ -460,7 +456,7 @@ def api_evaluate():
             author_email=author_email,
             book_title=book_title,
             proposal_type=proposal_type,
-            ownership_confirmed=ownership_confirmed,
+            ownership_confirmed=True,
             tier=evaluation.get('tier', 'C'),
             overall_score=evaluation.get('overall_score', 50),
             evaluation_json=json.dumps(evaluation),
@@ -471,12 +467,15 @@ def api_evaluate():
         db.session.add(proposal)
         db.session.commit()
         
-        # Send emails
-        if send_author_notification(proposal):
-            proposal.author_email_sent = True
-        if send_team_notification(proposal):
-            proposal.team_email_sent = True
-        db.session.commit()
+        # Send emails (don't fail if email fails)
+        try:
+            if send_author_notification(proposal):
+                proposal.author_email_sent = True
+            if send_team_notification(proposal):
+                proposal.team_email_sent = True
+            db.session.commit()
+        except Exception as email_error:
+            print(f"Email error (non-fatal): {email_error}")
         
         return jsonify({
             'success': True,
@@ -485,6 +484,8 @@ def api_evaluate():
         
     except Exception as e:
         print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': 'An unexpected error occurred. Please try again.'})
 
 
