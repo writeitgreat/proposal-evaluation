@@ -55,8 +55,8 @@
                 <td><span class="submitted-date">{{ p.submitted_at.strftime('%b %d, %Y') }}</span></td>
                 <td class="author-cell"><div class="author-name">{{ p.author_name }}</div><div class="author-email">{{ p.author_email }}</div></td>
                 <td class="title-cell"><div class="book-title">{{ p.book_title[:50] }}{% if p.book_title|length > 50 %}...{% endif %}</div></td>
-                <td><span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span></td>
-                <td><strong>{{ p.overall_score|round|int }}/100</strong></td>
+                <td>{% if p.tier %}<span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span>{% else %}<span class="status-badge submitted">Processing</span>{% endif %}</td>
+                <td><strong>{% if p.overall_score is not none %}{{ p.overall_score|round|int }}/100{% else %}--{% endif %}</strong></td>
                 <td><span class="status-badge {{ p.status }}">{{ p.status|replace('_', ' ')|title }}</span></td>
                 <td><a href="{{ url_for('admin_proposal_detail', submission_id=p.submission_id) }}" class="view-link">View →</a></td>
             </tr>

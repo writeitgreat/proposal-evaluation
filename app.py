@@ -481,7 +481,7 @@ def api_evaluate():
         # Run evaluation in background thread to avoid Heroku 30s timeout
         thread = threading.Thread(
             target=process_evaluation_background,
-            args=(app._get_current_object(), proposal.submission_id, proposal_text, proposal_type)
+            args=(app, proposal.submission_id, proposal_text, proposal_type)
         )
         thread.daemon = True
         thread.start()
