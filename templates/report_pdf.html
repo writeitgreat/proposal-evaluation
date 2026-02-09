@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Book Proposal Evaluation - {{ proposal.book_title }}</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 1in;
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #333;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #4a2c5a;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #4a2c5a;
+        }
+        
+        .tagline {
+            font-size: 10pt;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        h1 {
+            font-size: 18pt;
+            color: #4a2c5a;
+            margin: 20px 0 10px;
+        }
+        
+        h2 {
+            font-size: 14pt;
+            color: #4a2c5a;
+            margin: 25px 0 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        
+        h3 {
+            font-size: 12pt;
+            color: #4a2c5a;
+            margin: 15px 0 8px;
+        }
+        
+        .meta-info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .meta-info table {
+            width: 100%;
+        }
+        
+        .meta-info td {
+            padding: 5px 10px;
+        }
+        
+        .meta-info .label {
+            font-weight: bold;
+            color: #666;
+            width: 140px;
+        }
+        
+        .tier-box {
+            text-align: center;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .tier-a { background: #dcfce7; border: 2px solid #22c55e; }
+        .tier-b { background: #dbeafe; border: 2px solid #3b82f6; }
+        .tier-c { background: #fef3c7; border: 2px solid #f59e0b; }
+        .tier-d { background: #fee2e2; border: 2px solid #ef4444; }
+        
+        .tier-letter {
+            font-size: 48pt;
+            font-weight: bold;
+        }
+        
+        .tier-a .tier-letter { color: #16a34a; }
+        .tier-b .tier-letter { color: #2563eb; }
+        .tier-c .tier-letter { color: #d97706; }
+        .tier-d .tier-letter { color: #dc2626; }
+        
+        .tier-label {
+            font-size: 14pt;
+            color: #666;
+        }
+        
+        .score-display {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #4a2c5a;
+            margin-top: 10px;
+        }
+        
+        .summary {
+            background: #f8f6f9;
+            padding: 15px;
+            border-left: 4px solid #4a2c5a;
+            margin: 20px 0;
+            font-style: italic;
+        }
+        
+        .advance-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fff 100%);
+            border: 2px solid #c9a962;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .advance-range {
+            font-size: 20pt;
+            font-weight: bold;
+            color: #4a2c5a;
+        }
+        
+        .advance-note {
+            font-size: 10pt;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .category-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        .category-table th {
+            background: #4a2c5a;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+        
+        .category-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+        
+        .category-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .score-cell {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14pt;
+            width: 80px;
+        }
+        
+        .score-high { color: #16a34a; }
+        .score-mid { color: #d97706; }
+        .score-low { color: #dc2626; }
+        
+        .list-section {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .strengths { background: #dcfce7; border-left: 4px solid #22c55e; }
+        .concerns { background: #fef3c7; border-left: 4px solid #f59e0b; }
+        .next-steps { background: #f3e8ff; border-left: 4px solid #4a2c5a; }
+        
+        .list-section ul, .list-section ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        
+        .list-section li {
+            margin-bottom: 8px;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #4a2c5a;
+            text-align: center;
+            font-size: 9pt;
+            color: #666;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">Write It Great</div>
+        <div class="tagline">Elite Ghostwriting & Publishing Services</div>
+    </div>
+    
+    <h1>Book Proposal Evaluation Report</h1>
+    
+    <div class="meta-info">
+        <table>
+            <tr>
+                <td class="label">Book Title:</td>
+                <td><strong>{{ proposal.book_title }}</strong></td>
+            </tr>
+            <tr>
+                <td class="label">Author:</td>
+                <td>{{ proposal.author_name }}</td>
+            </tr>
+            <tr>
+                <td class="label">Submission ID:</td>
+                <td>{{ proposal.submission_id }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evaluation Date:</td>
+                <td>{{ proposal.submitted_at.strftime('%B %d, %Y') }}</td>
+            </tr>
+            <tr>
+                <td class="label">Submission Type:</td>
+                <td>{{ proposal.proposal_type|replace('_', ' ')|title }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="tier-box tier-{{ proposal.tier|lower }}">
+        <div class="tier-letter">{{ proposal.tier }}-Tier</div>
+        <div class="tier-label">Proposal Classification</div>
+        <div class="score-display">Overall Score: {{ proposal.overall_score|round|int }}/100</div>
+    </div>
+    
+    <h2>Executive Summary</h2>
+    <div class="summary">
+        {{ evaluation.get('summary', 'This proposal has been evaluated by our team of publishing professionals.') }}
+    </div>
+    
+    {% if evaluation.get('advance_estimate') %}
+    <div class="advance-box">
+        <div style="font-size: 10pt; color: #666;">Estimated Advance Range</div>
+        <div class="advance-range">${{ "{:,.0f}".format(evaluation.advance_estimate.low) }} - ${{ "{:,.0f}".format(evaluation.advance_estimate.high) }}</div>
+        <div class="advance-note">{{ evaluation.advance_estimate.notes }}</div>
+    </div>
+    {% endif %}
+    
+    <h2>Category Scores</h2>
+    <table class="category-table">
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Score</th>
+                <th>Feedback</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key, cat in evaluation.get('categories', {}).items() %}
+            <tr>
+                <td><strong>{{ key|replace('_', ' ')|title }}</strong></td>
+                <td class="score-cell {% if cat.score >= 70 %}score-high{% elif cat.score >= 50 %}score-mid{% else %}score-low{% endif %}">
+                    {{ cat.score }}
+                </td>
+                <td>{{ cat.feedback }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    {% if evaluation.get('strengths') %}
+    <h2>Strengths</h2>
+    <div class="list-section strengths">
+        <ul>
+            {% for item in evaluation.strengths %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    {% if evaluation.get('red_flags') %}
+    <h2>Areas of Concern</h2>
+    <div class="list-section concerns">
+        <ul>
+            {% for item in evaluation.red_flags %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    {% if evaluation.get('next_steps') %}
+    <h2>Recommended Next Steps</h2>
+    <div class="list-section next-steps">
+        <ol>
+            {% for item in evaluation.next_steps %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ol>
+    </div>
+    {% endif %}
+    
+    <div class="page-break"></div>
+    
+    <h2>Understanding Your Tier Classification</h2>
+    
+    <h3>A-Tier (80-100 points)</h3>
+    <p>Publisher-ready or near-ready. Strong concept with clear market positioning, established author platform, and professional execution. These proposals are competitive for traditional publishing with major houses.</p>
+    
+    <h3>B-Tier (60-79 points)</h3>
+    <p>Promising with focused work needed. Good foundation but requires development in 1-2 key areas before submission to agents or publishers. With refinement, these proposals have strong potential.</p>
+    
+    <h3>C-Tier (40-59 points)</h3>
+    <p>Significant development needed. Multiple areas require substantial work. May benefit from professional ghostwriting or developmental editing services to reach publishable quality.</p>
+    
+    <h3>D-Tier (0-39 points)</h3>
+    <p>Not ready for traditional publishing in current form. Consider alternative publishing paths or substantial reimagining of the project. Professional development services recommended.</p>
+    
+    <h2>About Advance Estimates</h2>
+    <p>Advance estimates are based on current market conditions for non-fiction books. Most first-time authors receive advances in the $0-$10,000 range. Higher advances typically require:</p>
+    <ul>
+        <li>Established platform with significant reach (50,000+ followers/subscribers)</li>
+        <li>Proven track record (previous books, major media presence)</li>
+        <li>Timely topic with clear market demand</li>
+        <li>Strong competitive positioning</li>
+    </ul>
+    
+    <div class="footer">
+        <p><strong>Write It Great</strong> | Elite Ghostwriting & Publishing Services</p>
+        <p>www.writeitgreat.com | info@writeitgreat.com</p>
+        <p>This evaluation is confidential and intended solely for the named recipient.</p>
+        <p>© {{ proposal.submitted_at.strftime('%Y') }} Write It Great. All rights reserved.</p>
+    </div>
+</body>
+</html>
