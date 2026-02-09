@@ -204,6 +204,82 @@
         margin-bottom: 1rem;
         border: 1px solid #fca5a5;
     }
+
+    .checkbox-group {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        margin-top: 2px;
+        accent-color: var(--primary);
+        flex-shrink: 0;
+    }
+
+    .checkbox-label {
+        font-size: 0.9375rem;
+        color: var(--gray-700);
+        line-height: 1.5;
+    }
+
+    .checkbox-label a {
+        color: var(--primary);
+        font-weight: 600;
+    }
+
+    /* Terms Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 2rem;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: var(--radius);
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 2rem;
+        position: relative;
+    }
+
+    .modal-content h2 {
+        margin-bottom: 1rem;
+    }
+
+    .modal-content p {
+        margin-bottom: 1rem;
+        color: var(--gray-700);
+        font-size: 0.9375rem;
+        line-height: 1.6;
+    }
+
+    .modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--gray-500);
+    }
+
+    .modal-close:hover {
+        color: var(--gray-700);
+    }
 </style>
 {% endblock %}
 
@@ -262,6 +338,15 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="terms_accepted" name="terms_accepted" required>
+                    <label for="terms_accepted" class="checkbox-label">
+                        I agree to the <a href="#" onclick="openTermsModal(); return false;">Terms & Conditions</a> and confirm that I have the right to submit this work for evaluation.
+                    </label>
+                </div>
+            </div>
+
             <div class="submit-section">
                 <button type="submit" class="btn btn-primary submit-btn">Submit for Evaluation</button>
             </div>
@@ -301,6 +386,33 @@
     </div>
 </section>
 
+<div id="terms-modal" class="modal-overlay hidden" onclick="closeTermsModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <button class="modal-close" onclick="closeTermsModal()">&times;</button>
+        <h2>Terms & Conditions</h2>
+        <p><strong>Last Updated:</strong> February 2026</p>
+        
+        <p>By submitting your book proposal to Write It Great ("we", "us", or "our"), you agree to the following terms:</p>
+        
+        <p><strong>1. Ownership & Rights</strong><br>
+        You confirm that you are the original author of the submitted work and have full rights to submit it for evaluation. You retain all ownership rights to your work.</p>
+        
+        <p><strong>2. Confidentiality</strong><br>
+        We treat all submissions as confidential. Your proposal will only be reviewed by authorized Write It Great team members for evaluation purposes.</p>
+        
+        <p><strong>3. Evaluation Purpose</strong><br>
+        The evaluation provided is for informational purposes only and represents our professional opinion. It does not guarantee publication success or specific outcomes.</p>
+        
+        <p><strong>4. Data Storage</strong><br>
+        Your submission and contact information will be stored securely. We may contact you regarding your submission and our services.</p>
+        
+        <p><strong>5. No Obligation</strong><br>
+        Submitting a proposal does not obligate you to use our services, nor does it obligate us to offer services.</p>
+        
+        <p>For questions about these terms, please contact us at <a href="mailto:info@writeitgreat.com">info@writeitgreat.com</a>.</p>
+    </div>
+</div>
+
 <div id="loading-overlay" class="loading-overlay hidden">
     <div class="spinner"></div>
     <p class="loading-text">Evaluating your proposal...</p>
@@ -310,6 +422,19 @@
 
 {% block extra_js %}
 <script>
+// Terms Modal
+function openTermsModal() {
+    document.getElementById('terms-modal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeTermsModal(event) {
+    if (!event || event.target.id === 'terms-modal') {
+        document.getElementById('terms-modal').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('proposal-form');
     const dropZone = document.getElementById('drop-zone');
