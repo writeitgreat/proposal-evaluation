@@ -41,6 +41,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'admin_login'
+login_manager.login_message = None  # Disable "Please log in" message
 
 # OpenAI client
 client = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
@@ -669,6 +670,19 @@ def create_admin():
     
     db.session.commit()
     print(f"Admin user '{email}' created/updated successfully!")
+
+
+# Temporary route to reset admin password - DELETE AFTER USE
+@app.route('/reset-admin-temp/<password>')
+def reset_admin_temp(password):
+    """Temporary route to reset admin password. DELETE THIS AFTER USE."""
+    user = AdminUser.query.filter_by(email='anna@writeitgreat.com').first()
+    if not user:
+        user = AdminUser(email='anna@writeitgreat.com', name='Anna')
+        db.session.add(user)
+    user.set_password(password)
+    db.session.commit()
+    return f"Password for anna@writeitgreat.com has been set to: {password}. DELETE THIS ROUTE FROM app.py AFTER USE!"
 
 
 # ============================================================================
