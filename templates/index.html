@@ -55,14 +55,6 @@
                     </label>
                 </div>
             </div>
-            <div class="form-group">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="nda_accepted" name="nda_accepted" required>
-                    <label for="nda_accepted" class="checkbox-label">
-                        I agree to the <a href="#" onclick="document.getElementById('nda-modal').classList.remove('hidden'); return false;">Non-Disclosure Agreement</a> *
-                    </label>
-                </div>
-            </div>
             <div class="submit-section">
                 <button type="submit" class="btn btn-primary submit-btn">Submit for Evaluation</button>
             </div>
@@ -119,45 +111,6 @@
     </div>
 </div>
 
-<div id="nda-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
-    <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
-        <button class="modal-close" onclick="document.getElementById('nda-modal').classList.add('hidden')">&times;</button>
-        <h2>Non-Disclosure Agreement</h2>
-        <h3>PROJECT EVALUATION NDA</h3>
-        <p><strong>NON-DISCLOSURE AGREEMENT</strong></p>
-
-        <p>This non-disclosure agreement ("NDA") is between Write It Great LLC ("Company") and the submitting party ("Customer") as of the date of submission (the "Effective Date"). The NDA relates to the revelation of certain proprietary and/or confidential information by the Customer during the course of evaluating a potential working relationship. The terms and the obligations of both parties under this NDA shall come into effect immediately and shall be binding upon their respective heirs, successors, assigns, and affiliates.</p>
-
-        <h4>1. CONFIDENTIAL INFORMATION</h4>
-        <p>The Company acknowledges and agrees that all information, including without limitation, all content, writings, work product, notes, and diagrams ("Confidential Information"), is of great value to the Customer. Accordingly, the Company agrees not to divulge to anyone, either during or after the term of this NDA, any Confidential Information obtained by the Company. Upon the expiration or termination of this NDA, the Company agrees to make no further use of any Confidential Information. The Company may only disclose Confidential Information to third parties upon the express written consent of the Customer. The provisions of this Section shall survive the expiration or termination of this NDA.</p>
-
-        <h4>2. ASSIGNMENT</h4>
-        <p>The Customer and the Company may assign this NDA, in whole or in part, to any party provided that such party assumes and agrees in writing to keep and perform all obligations of the NDA hereunder.</p>
-
-        <h4>3. BINDING EFFECT</h4>
-        <p>This NDA shall inure to the benefit of and be binding on the Company's heirs, executors, administrators, successors, and assigns, and on the Customer's successors, assigns, licensees, and grantees.</p>
-
-        <h4>4. TIME PERIODS</h4>
-        <p>This NDA and the Company's duty to hold Confidential Information in confidence shall remain in effect until whichever of the following occurs first: (a) the Customer sends the Company written notice releasing it from this Provision, or (b) Confidential Information disclosed under this Provision ceases to be confidential.</p>
-
-        <h4>5. BREACH</h4>
-        <p>The Company appreciates the value of information and/or knowledge to be gained as a result of this NDA. In the event of disclosure prohibited by the terms of this NDA and/or breach of this NDA by the Company, the Company shall be liable to the Customer for any and all loss, whether tangible or intangible, including monetary loss of any kind and/or loss of goodwill. The Parties hereby acknowledge and agree that monetary damages would not be a sufficient remedy for any breach of this NDA. The Customer shall be entitled to seek injunctive or other equitable relief to remedy any breach or threatened breach by the Company and such remedy shall not be deemed the exclusive remedy for any breach of this NDA, but shall be in addition to all other rights and remedies available at law or equity.</p>
-
-        <h4>6. RELATIONSHIPS</h4>
-        <p>Nothing contained in this Provision shall be deemed to constitute either party a partner, joint venturer, or employee of the other party for any purpose.</p>
-
-        <h4>7. SEVERABILITY</h4>
-        <p>If a court finds any provision of this NDA invalid or unenforceable, the remainder of this NDA shall remain in effect to the intent of the parties.</p>
-
-        <h4>8. WAIVER</h4>
-        <p>The failure to exercise any right provided in this NDA shall not be a waiver of prior or subsequent rights.</p>
-
-        <h4>9. SUCCESSOR AND ASSIGNS</h4>
-        <p>This NDA and each party's obligations shall be binding on the representatives, assigns and successors of such party, if any.</p>
-
-        <p style="margin-top: 1.5rem; font-style: italic; color: var(--gray-600);">By checking the NDA agreement box, you electronically sign and agree to the terms of this Non-Disclosure Agreement.</p>
-    </div>
-</div>
 
 <div id="loading-overlay" class="loading-overlay hidden">
     <div class="spinner"></div>
