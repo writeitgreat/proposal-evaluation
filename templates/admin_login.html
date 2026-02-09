@@ -1,44 +1,110 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Login{% endblock %}
+{% block title %}Admin Login - Write It Great{% endblock %}
+
+{% block extra_css %}
+.login-container {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px 50px;
+}
+
+.login-card {
+    background: white;
+    padding: 3rem;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 400px;
+}
+
+.login-card h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 1.5rem;
+    color: #4a2c5a;
+}
+
+.login-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.login-form label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.login-form input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.login-form input:focus {
+    outline: none;
+    border-color: #4a2c5a;
+}
+
+.login-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.125rem;
+    background: #4a2c5a;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.login-btn:hover {
+    background: #3a1c4a;
+}
+
+.login-error {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    border: 1px solid #fca5a5;
+}
+{% endblock %}
 
 {% block content %}
-<div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 70vh;">
-    <div class="card" style="max-width: 400px; width: 100%;">
-        <h2 style="text-align: center; margin-bottom: 2rem;">Admin Login</h2>
+<div class="login-container">
+    <div class="login-card">
+        <h1>Admin Login</h1>
         
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}" style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; 
-                        {% if category == 'error' %}background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444;{% endif %}
-                        {% if category == 'success' %}background: rgba(34, 197, 94, 0.1); border: 1px solid #22c55e; color: #22c55e;{% endif %}
-                        {% if category == 'info' %}background: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; color: #3b82f6;{% endif %}">
-                        {{ message }}
-                    </div>
+                    <div class="login-error">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
         
-        <form method="POST">
+        <form method="POST" class="login-form">
             <div class="form-group">
-                <label class="form-label" for="email">Email</label>
-                <input type="email" id="email" name="email" class="form-input" required autofocus>
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required placeholder="anna@writeitgreat.com">
             </div>
             
             <div class="form-group">
-                <label class="form-label" for="password">Password</label>
-                <input type="password" id="password" name="password" class="form-input" required>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="••••••••">
             </div>
             
-            <button type="submit" class="btn btn-primary" style="width: 100%;">
-                Sign In
-            </button>
+            <button type="submit" class="login-btn">Login</button>
         </form>
-        
-        <p style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.875rem;">
-            <a href="/" style="color: var(--primary-light);">← Back to submission form</a>
-        </p>
     </div>
 </div>
 {% endblock %}
