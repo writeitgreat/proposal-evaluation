@@ -9,6 +9,8 @@ import json
 import uuid
 import tempfile
 import smtplib
+import traceback
+from io import BytesIO
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -228,6 +230,25 @@ ADVANCE ESTIMATES (non-fiction):
 def generate_pdf_report(proposal):
     """Generate PDF report for proposal"""
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+
+    # Ensure numeric values are properly typed to prevent format() errors
+    advance = evaluation.get('advance_estimate')
+    if advance and isinstance(advance, dict):
+        try:
+            advance['low'] = float(advance.get('low', 0) or 0)
+            advance['high'] = float(advance.get('high', 0) or 0)
+        except (ValueError, TypeError):
+            advance['low'] = 0
+            advance['high'] = 0
+
+    categories = evaluation.get('categories', {})
+    for key, cat in categories.items():
+        if isinstance(cat, dict):
+            try:
+                cat['score'] = float(cat.get('score', 0) or 0)
+            except (ValueError, TypeError):
+                cat['score'] = 0
+
     html = render_template('report_pdf.html', proposal=proposal, evaluation=evaluation)
     pdf = HTML(string=html, base_url=request.host_url).write_pdf()
     return pdf
@@ -267,39 +288,47 @@ def send_email(to_email, subject, html_content, attachments=None):
 def send_author_notification(proposal):
     """Send evaluation results to the author"""
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
-    
+
+    score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
+
     subject = f"Your Book Proposal Evaluation - {proposal.book_title}"
-    
+
     html_content = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #4a2c5a;">Your Book Proposal Evaluation Results</h2>
-            
+
             <p>Dear {proposal.author_name},</p>
-            
+
             <p>Thank you for submitting your book proposal for <strong>"{proposal.book_title}"</strong> to Write It Great.</p>
-            
+
             <div style="background: #f8f6f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="margin-top: 0; color: #4a2c5a;">Evaluation Summary</h3>
-                <p><strong>Classification:</strong> {proposal.tier}-Tier</p>
-                <p><strong>Overall Score:</strong> {proposal.overall_score:.0f}/100</p>
+                <p><strong>Classification:</strong> {proposal.tier or 'N/A'}-Tier</p>
+                <p><strong>Overall Score:</strong> {score_display}/100</p>
                 <p><strong>Summary:</strong> {evaluation.get('summary', 'See attached report for details.')}</p>
             </div>
-            
+
             <p>Your complete evaluation report is attached as a PDF.</p>
-            
+
             <p>A member of our team will reach out within 3-5 business days.</p>
-            
+
             <p>Best regards,<br><strong>The Write It Great Team</strong></p>
         </div>
     </body>
     </html>
     """
-    
+
+    # Try to generate PDF attachment, but send email even if PDF fails
+    attachments = None
     try:
         pdf_content = generate_pdf_report(proposal)
         attachments = [(f"Book_Proposal_Evaluation_{proposal.submission_id}.pdf", pdf_content)]
+    except Exception as e:
+        print(f"PDF generation for author email failed (sending without attachment): {e}")
+
+    try:
         return send_email(proposal.author_email, subject, html_content, attachments)
     except Exception as e:
         print(f"Author notification error: {e}")
@@ -308,32 +337,38 @@ def send_author_notification(proposal):
 
 def send_team_notification(proposal):
     """Send notification to team about new submission"""
-    evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
-    
-    subject = f"[{proposal.tier}-Tier] New Proposal: {proposal.book_title}"
-    
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif;">
-        <h2 style="color: #4a2c5a;">New Book Proposal Submission</h2>
-        <p><strong>Author:</strong> {proposal.author_name}</p>
-        <p><strong>Email:</strong> {proposal.author_email}</p>
-        <p><strong>Book Title:</strong> {proposal.book_title}</p>
-        <p><strong>Tier:</strong> {proposal.tier}</p>
-        <p><strong>Score:</strong> {proposal.overall_score:.0f}/100</p>
-        <p><strong>Summary:</strong> {evaluation.get('summary', 'No summary')}</p>
-        <p><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}">View Full Proposal</a></p>
-    </body>
-    </html>
-    """
-    
-    success = True
-    for email in TEAM_EMAILS:
-        if email.strip():
-            if not send_email(email.strip(), subject, html_content):
-                success = False
-    
-    return success
+    try:
+        evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+
+        score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
+
+        subject = f"[{proposal.tier or 'N/A'}-Tier] New Proposal: {proposal.book_title}"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #4a2c5a;">New Book Proposal Submission</h2>
+            <p><strong>Author:</strong> {proposal.author_name}</p>
+            <p><strong>Email:</strong> {proposal.author_email}</p>
+            <p><strong>Book Title:</strong> {proposal.book_title}</p>
+            <p><strong>Tier:</strong> {proposal.tier or 'N/A'}</p>
+            <p><strong>Score:</strong> {score_display}/100</p>
+            <p><strong>Summary:</strong> {evaluation.get('summary', 'No summary')}</p>
+            <p><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}">View Full Proposal</a></p>
+        </body>
+        </html>
+        """
+
+        success = True
+        for email in TEAM_EMAILS:
+            if email.strip():
+                if not send_email(email.strip(), subject, html_content):
+                    success = False
+
+        return success
+    except Exception as e:
+        print(f"Team notification error: {e}")
+        return False
 
 
 # ============================================================================
@@ -410,7 +445,6 @@ def api_evaluate():
         
     except Exception as e:
         print(f"Error: {e}")
-        import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': 'An unexpected error occurred. Please try again.'})
 
@@ -427,19 +461,21 @@ def results(submission_id):
 def download_pdf(submission_id):
     """Download PDF report"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
-    
-    pdf_content = generate_pdf_report(proposal)
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as f:
-        f.write(pdf_content)
-        temp_path = f.name
-    
-    return send_file(
-        temp_path,
-        as_attachment=True,
-        download_name=f"Book_Proposal_Evaluation_{proposal.submission_id}.pdf",
-        mimetype='application/pdf'
-    )
+
+    try:
+        pdf_content = generate_pdf_report(proposal)
+        pdf_buffer = BytesIO(pdf_content)
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=f"Book_Proposal_Evaluation_{proposal.submission_id}.pdf",
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        print(f"PDF download error: {e}")
+        traceback.print_exc()
+        flash('Error generating PDF report. Please try again later.', 'error')
+        return redirect(url_for('results', submission_id=submission_id))
 
 
 # ============================================================================

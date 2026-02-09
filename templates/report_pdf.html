@@ -45,6 +45,15 @@
         .list-section li { margin-bottom: 8px; }
         .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #4a2c5a; text-align: center; font-size: 9pt; color: #666; }
         .page-break { page-break-before: always; }
+        .category-detail { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; border-left: 4px solid #4a2c5a; }
+        .category-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .category-detail-name { font-size: 13pt; font-weight: bold; color: #4a2c5a; }
+        .category-detail-score { font-size: 14pt; font-weight: bold; }
+        .category-detail p { margin: 8px 0; font-size: 10.5pt; }
+        .priority-actions { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; }
+        .priority-actions strong { font-size: 9pt; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+        .priority-actions ul { margin: 5px 0 0; padding-left: 20px; }
+        .priority-actions li { font-size: 10pt; margin-bottom: 4px; }
     </style>
 </head>
 <body>
@@ -52,67 +61,111 @@
         <div class="logo">Write It Great</div>
         <div class="tagline">Elite Ghostwriting & Publishing Services</div>
     </div>
-    
+
     <h1>Book Proposal Evaluation Report</h1>
-    
+
     <div class="meta-info">
         <table>
             <tr><td class="label">Book Title:</td><td><strong>{{ proposal.book_title }}</strong></td></tr>
             <tr><td class="label">Author:</td><td>{{ proposal.author_name }}</td></tr>
             <tr><td class="label">Submission ID:</td><td>{{ proposal.submission_id }}</td></tr>
-            <tr><td class="label">Evaluation Date:</td><td>{{ proposal.submitted_at.strftime('%B %d, %Y') }}</td></tr>
+            <tr><td class="label">Evaluation Date:</td><td>{{ proposal.submitted_at.strftime('%B %d, %Y') if proposal.submitted_at else 'N/A' }}</td></tr>
         </table>
     </div>
-    
-    <div class="tier-box tier-{{ proposal.tier|lower }}">
-        <div class="tier-letter">{{ proposal.tier }}-Tier</div>
-        <div>Overall Score: {{ proposal.overall_score|round|int }}/100</div>
+
+    <div class="tier-box tier-{{ (proposal.tier or 'c')|lower }}">
+        <div class="tier-letter">{{ proposal.tier or 'N/A' }}-Tier</div>
+        <div>Overall Score: {{ proposal.overall_score|default(0, true)|round|int }}/100</div>
     </div>
-    
+
     <h2>Executive Summary</h2>
     <div class="summary">{{ evaluation.get('summary', 'This proposal has been evaluated.') }}</div>
-    
+
     {% if evaluation.get('advance_estimate') %}
+    {% set advance = evaluation.get('advance_estimate', {}) %}
     <div class="advance-box">
         <div style="font-size: 10pt; color: #666;">Estimated Advance Range</div>
-        <div class="advance-range">${{ "{:,.0f}".format(evaluation.advance_estimate.low) }} - ${{ "{:,.0f}".format(evaluation.advance_estimate.high) }}</div>
-        <div style="font-size: 10pt; margin-top: 5px;">{{ evaluation.advance_estimate.notes }}</div>
+        <div class="advance-range">${{ "{:,.0f}".format(advance.get('low', 0)|float) }} - ${{ "{:,.0f}".format(advance.get('high', 0)|float) }}</div>
+        <div style="font-size: 10pt; margin-top: 5px;">{{ advance.get('notes', '') }}</div>
     </div>
     {% endif %}
-    
-    <h2>Category Scores</h2>
+
+    <h2>Category Scores Overview</h2>
     <table class="category-table">
         <thead><tr><th>Category</th><th>Score</th><th>Feedback</th></tr></thead>
         <tbody>
         {% for key, cat in evaluation.get('categories', {}).items() %}
+        {% set score = cat.get('score', 0)|float %}
         <tr>
             <td><strong>{{ key|replace('_', ' ')|title }}</strong></td>
-            <td class="score-cell {% if cat.score >= 70 %}score-high{% elif cat.score >= 50 %}score-mid{% else %}score-low{% endif %}">{{ cat.score }}</td>
-            <td>{{ cat.feedback }}</td>
+            <td class="score-cell {% if score >= 70 %}score-high{% elif score >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|round|int }}</td>
+            <td>{{ cat.get('feedback', 'No feedback available.') }}</td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
-    
+
+    <div class="page-break"></div>
+
+    <h2>Detailed Category Analysis</h2>
+    {% for key, cat in evaluation.get('categories', {}).items() %}
+    {% set score = cat.get('score', 0)|float %}
+    <div class="category-detail">
+        <div class="category-detail-header">
+            <span class="category-detail-name">{{ key|replace('_', ' ')|title }}</span>
+            <span class="category-detail-score {% if score >= 70 %}score-high{% elif score >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|round|int }}/100</span>
+        </div>
+        <p>{{ cat.get('feedback', 'No feedback available.') }}</p>
+        {% if cat.get('priority_actions') %}
+        <div class="priority-actions">
+            <strong>Priority Actions:</strong>
+            <ul>
+            {% for action in cat.get('priority_actions', []) %}
+                <li>{{ action }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
     {% if evaluation.get('strengths') %}
     <h2>Strengths</h2>
-    <div class="list-section strengths"><ul>{% for item in evaluation.strengths %}<li>{{ item }}</li>{% endfor %}</ul></div>
+    <div class="list-section strengths">
+        <ul>
+        {% for item in evaluation.get('strengths', []) %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ul>
+    </div>
     {% endif %}
-    
+
     {% if evaluation.get('red_flags') %}
     <h2>Areas of Concern</h2>
-    <div class="list-section concerns"><ul>{% for item in evaluation.red_flags %}<li>{{ item }}</li>{% endfor %}</ul></div>
+    <div class="list-section concerns">
+        <ul>
+        {% for item in evaluation.get('red_flags', []) %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ul>
+    </div>
     {% endif %}
-    
+
     {% if evaluation.get('next_steps') %}
     <h2>Recommended Next Steps</h2>
-    <div class="list-section next-steps"><ol>{% for item in evaluation.next_steps %}<li>{{ item }}</li>{% endfor %}</ol></div>
+    <div class="list-section next-steps">
+        <ol>
+        {% for item in evaluation.get('next_steps', []) %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ol>
+    </div>
     {% endif %}
-    
+
     <div class="footer">
         <p><strong>Write It Great</strong> | Elite Ghostwriting & Publishing Services</p>
         <p>www.writeitgreat.com | info@writeitgreat.com</p>
-        <p>© 2026 Write It Great. All rights reserved.</p>
+        <p>&copy; 2026 Write It Great. All rights reserved.</p>
     </div>
 </body>
 </html>
