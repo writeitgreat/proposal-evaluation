@@ -1,321 +1,397 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Book Proposal Evaluation | Write It Great</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+Pro:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <a href="https://www.writeitgreat.com" class="logo">
-                <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Write It Great" height="40">
-            </a>
-            <span class="tagline">an elite ghostwriting firm</span>
-        </div>
-    </header>
+{% extends "base.html" %}
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="container">
-            <h1>Book Proposal Evaluation</h1>
-            <p class="subtitle">Get professional feedback on your book proposal from our team of literary experts</p>
-        </div>
-    </section>
+{% block title %}Submit Your Book Proposal - Write It Great{% endblock %}
 
-    <!-- Main Form Section -->
-    <main class="main-content">
-        <div class="container">
-            <div class="form-wrapper">
-                <div class="form-intro">
-                    <h2>Submit Your Proposal</h2>
-                    <p>Upload your book proposal to receive a comprehensive evaluation with actionable feedback. Our AI-powered system, trained on successful proposals, will analyze your submission across seven key categories.</p>
+{% block extra_css %}
+<style>
+    .hero {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+        color: white;
+        padding: 4rem 2rem;
+        text-align: center;
+    }
+
+    .hero h1 {
+        color: var(--gold);
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .hero p {
+        font-size: 1.125rem;
+        opacity: 0.9;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .form-container {
+        max-width: 700px;
+        margin: -2rem auto 2rem;
+        position: relative;
+        z-index: 10;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--gray-700);
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius);
+        font-size: 1rem;
+        transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+
+    .form-hint {
+        font-size: 0.875rem;
+        color: var(--gray-500);
+        margin-top: 0.5rem;
+    }
+
+    .upload-zone {
+        border: 2px dashed var(--gray-300);
+        border-radius: var(--radius);
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.dragover {
+        border-color: var(--primary);
+        background: var(--gray-50);
+    }
+
+    .upload-zone svg {
+        width: 48px;
+        height: 48px;
+        color: var(--gray-400);
+        margin-bottom: 1rem;
+    }
+
+    .upload-zone p {
+        color: var(--gray-600);
+    }
+
+    .upload-zone .browse-link {
+        color: var(--primary);
+        font-weight: 600;
+    }
+
+    .selected-file {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem;
+        background: var(--gray-50);
+        border-radius: var(--radius);
+    }
+
+    .selected-file svg {
+        color: var(--success);
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    .submit-section {
+        text-align: center;
+        padding-top: 1rem;
+    }
+
+    .submit-btn {
+        width: 100%;
+        max-width: 300px;
+        padding: 1rem 2rem;
+        font-size: 1.125rem;
+    }
+
+    .what-we-evaluate {
+        background: var(--gray-50);
+        padding: 3rem 2rem;
+    }
+
+    .eval-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        max-width: 1000px;
+        margin: 2rem auto 0;
+    }
+
+    .eval-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+    .eval-card h3 {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+        color: var(--primary);
+    }
+
+    .eval-card p {
+        font-size: 0.875rem;
+        color: var(--gray-600);
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(74, 44, 90, 0.95);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        color: white;
+    }
+
+    .spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid var(--gold-light);
+        border-top-color: var(--gold);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1.5rem;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+        font-size: 1.25rem;
+        font-weight: 500;
+    }
+
+    .loading-subtext {
+        font-size: 0.875rem;
+        opacity: 0.8;
+        margin-top: 0.5rem;
+    }
+
+    .error-message {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 1rem;
+        border-radius: var(--radius);
+        margin-bottom: 1rem;
+        border: 1px solid #fca5a5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Book Proposal Evaluation</h1>
+    <p>Get expert feedback on your book proposal from our team of publishing professionals.</p>
+</section>
+
+<div class="container form-container">
+    <div class="card">
+        <form id="proposal-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="author_name">Your Full Name *</label>
+                <input type="text" id="author_name" name="author_name" required placeholder="John Smith">
+            </div>
+
+            <div class="form-group">
+                <label for="author_email">Email Address *</label>
+                <input type="email" id="author_email" name="author_email" required placeholder="john@example.com">
+                <p class="form-hint">We'll send your evaluation report to this email.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="book_title">Book Title *</label>
+                <input type="text" id="book_title" name="book_title" required placeholder="The Art of Writing">
+            </div>
+
+            <div class="form-group">
+                <label for="proposal_type">Submission Type *</label>
+                <select id="proposal_type" name="proposal_type" required>
+                    <option value="full">Full Proposal (All Sections)</option>
+                    <option value="marketing_only">Marketing Materials Only</option>
+                    <option value="no_marketing">Proposal Without Marketing</option>
+                </select>
+                <p class="form-hint">Select what's included in your document.</p>
+            </div>
+
+            <div class="form-group">
+                <label>Upload Your Proposal *</label>
+                <div class="upload-zone" id="drop-zone">
+                    <input type="file" id="proposal_file" name="proposal_file" accept=".pdf,.doc,.docx" required style="display: none;">
+                    <div id="upload-text">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p>Drag and drop your file here, or <span class="browse-link">browse</span></p>
+                        <p class="form-hint">PDF, DOC, or DOCX (max 16MB)</p>
+                    </div>
+                    <div id="selected-file" class="selected-file hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span id="selected-filename"></span>
+                    </div>
                 </div>
-
-                <form id="proposal-form" enctype="multipart/form-data">
-                    <!-- Author Information -->
-                    <div class="form-section">
-                        <h3>Author Information</h3>
-                        
-                        <div class="form-group">
-                            <label for="author_name">Full Name <span class="required">*</span></label>
-                            <input type="text" id="author_name" name="author_name" required 
-                                   placeholder="Enter your full name">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="author_email">Email Address <span class="required">*</span></label>
-                            <input type="email" id="author_email" name="author_email" required 
-                                   placeholder="Enter your email address">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="book_title">Book Title <span class="required">*</span></label>
-                            <input type="text" id="book_title" name="book_title" required 
-                                   placeholder="Enter your book's working title">
-                        </div>
-                    </div>
-
-                    <!-- Proposal Upload -->
-                    <div class="form-section">
-                        <h3>Proposal Upload</h3>
-                        
-                        <div class="form-group">
-                            <label for="proposal_type">What are you submitting? <span class="required">*</span></label>
-                            <div class="radio-group">
-                                <label class="radio-option">
-                                    <input type="radio" name="proposal_type" value="full" required checked>
-                                    <span class="radio-label">
-                                        <strong>Full Proposal</strong>
-                                        <span class="radio-description">Complete proposal including marketing section</span>
-                                    </span>
-                                </label>
-                                <label class="radio-option">
-                                    <input type="radio" name="proposal_type" value="marketing_only">
-                                    <span class="radio-label">
-                                        <strong>Marketing Section Only</strong>
-                                        <span class="radio-description">Only the marketing/platform portion</span>
-                                    </span>
-                                </label>
-                                <label class="radio-option">
-                                    <input type="radio" name="proposal_type" value="no_marketing">
-                                    <span class="radio-label">
-                                        <strong>No Marketing Section</strong>
-                                        <span class="radio-description">Proposal without marketing content</span>
-                                    </span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="proposal_file">Upload Proposal (PDF) <span class="required">*</span></label>
-                            <div class="file-upload-wrapper">
-                                <input type="file" id="proposal_file" name="proposal_file" 
-                                       accept=".pdf" required class="file-input">
-                                <div class="file-upload-display">
-                                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                        <polyline points="17,8 12,3 7,8"></polyline>
-                                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                                    </svg>
-                                    <p class="upload-text">Click to upload or drag and drop</p>
-                                    <p class="upload-hint">PDF only, max 50MB</p>
-                                </div>
-                                <div class="file-selected" style="display: none;">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14,2 14,8 20,8"></polyline>
-                                    </svg>
-                                    <span class="file-name"></span>
-                                    <button type="button" class="remove-file">&times;</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Agreements -->
-                    <div class="form-section">
-                        <h3>Agreements</h3>
-                        
-                        <div class="form-group checkbox-group">
-                            <label class="checkbox-option">
-                                <input type="checkbox" name="agree_terms" id="agree_terms" required>
-                                <span class="checkmark"></span>
-                                <span class="checkbox-label">
-                                    I agree to the <a href="#" id="terms-link">Terms and Conditions</a> <span class="required">*</span>
-                                </span>
-                            </label>
-                        </div>
-
-                        <div class="form-group checkbox-group">
-                            <label class="checkbox-option">
-                                <input type="checkbox" name="agree_nda" id="agree_nda" required>
-                                <span class="checkmark"></span>
-                                <span class="checkbox-label">
-                                    I agree to the <a href="#" id="nda-link">Non-Disclosure Agreement</a> <span class="required">*</span>
-                                </span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Submit Button -->
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary" id="submit-btn">
-                            <span class="btn-text">Submit for Evaluation</span>
-                            <span class="btn-loading" style="display: none;">
-                                <span class="spinner"></span>
-                                Processing...
-                            </span>
-                        </button>
-                        <p class="form-note">Evaluation typically takes 30-60 seconds</p>
-                    </div>
-                </form>
-
-                <!-- Error Message -->
-                <div id="error-message" class="error-message" style="display: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <span class="error-text"></span>
-                </div>
             </div>
 
-            <!-- Info Cards -->
-            <div class="info-section">
-                <h2>What We Evaluate</h2>
-                <div class="info-cards">
-                    <div class="info-card">
-                        <div class="card-icon">📊</div>
-                        <h4>Marketing & Platform</h4>
-                        <p>Your author platform, audience reach, and promotional capabilities</p>
-                        <span class="weight">30% weight</span>
-                    </div>
-                    <div class="info-card">
-                        <div class="card-icon">💡</div>
-                        <h4>Overview & Concept</h4>
-                        <p>The strength and marketability of your book idea</p>
-                        <span class="weight">20% weight</span>
-                    </div>
-                    <div class="info-card">
-                        <div class="card-icon">🎓</div>
-                        <h4>Author Credentials</h4>
-                        <p>Your expertise and authority on the subject matter</p>
-                        <span class="weight">15% weight</span>
-                    </div>
-                    <div class="info-card">
-                        <div class="card-icon">📚</div>
-                        <h4>Comparative Titles</h4>
-                        <p>Market positioning and competitive analysis</p>
-                        <span class="weight">15% weight</span>
-                    </div>
-                    <div class="info-card">
-                        <div class="card-icon">✍️</div>
-                        <h4>Sample Writing</h4>
-                        <p>Quality of prose, voice, and readability</p>
-                        <span class="weight">10% weight</span>
-                    </div>
-                    <div class="info-card">
-                        <div class="card-icon">📋</div>
-                        <h4>Book Outline</h4>
-                        <p>Structure, organization, and chapter breakdown</p>
-                        <span class="weight">5% weight</span>
-                    </div>
-                </div>
+            <div class="submit-section">
+                <button type="submit" class="btn btn-primary submit-btn">Submit for Evaluation</button>
             </div>
-        </div>
-    </main>
+        </form>
+    </div>
+</div>
 
-    <!-- Terms Modal -->
-    <div id="terms-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Terms and Conditions</h2>
-                <button class="modal-close">&times;</button>
+<section class="what-we-evaluate">
+    <div class="container" style="text-align: center;">
+        <h2>What We Evaluate</h2>
+        <div class="eval-grid">
+            <div class="eval-card">
+                <h3>📖 Concept & Hook</h3>
+                <p>Is your book idea compelling and marketable? Does it fill a gap in the market?</p>
             </div>
-            <div class="modal-body">
-                <h3>Book Proposal Evaluation Terms and Conditions</h3>
-                <p><strong>Effective Date:</strong> Upon submission</p>
-                
-                <h4>1. Service Description</h4>
-                <p>Write It Great LLC ("Company") provides an AI-assisted book proposal evaluation service. By submitting your proposal, you acknowledge that the evaluation is generated using artificial intelligence technology and is intended as guidance only.</p>
-                
-                <h4>2. No Guarantee of Publishing Success</h4>
-                <p>The evaluation results do not guarantee publication, representation, or commercial success. The scores and feedback provided are subjective assessments based on industry standards and should be considered as one of many factors in your publishing journey.</p>
-                
-                <h4>3. Intellectual Property</h4>
-                <p>You retain all rights to your submitted materials. By submitting your proposal, you grant Write It Great LLC a limited license to process and analyze your content solely for the purpose of providing the evaluation service.</p>
-                
-                <h4>4. Data Handling</h4>
-                <p>Your submitted materials will be processed securely. We do not share your content with third parties except as necessary to provide the evaluation service (e.g., AI processing). Proposal content may be temporarily stored for processing purposes.</p>
-                
-                <h4>5. Limitation of Liability</h4>
-                <p>Write It Great LLC's liability is limited to the amount paid for the service, if any. We are not liable for any indirect, incidental, or consequential damages arising from use of the evaluation service.</p>
-                
-                <h4>6. Accuracy of Information</h4>
-                <p>You represent that all information provided is accurate and that you have the right to submit the materials for evaluation.</p>
-                
-                <h4>7. Changes to Terms</h4>
-                <p>We reserve the right to modify these terms at any time. Continued use of the service constitutes acceptance of modified terms.</p>
-                
-                <h4>8. Governing Law</h4>
-                <p>These terms are governed by the laws of the State of [Your State], without regard to conflict of law principles.</p>
-                
-                <p class="terms-footer">By checking the agreement box, you acknowledge that you have read, understood, and agree to these Terms and Conditions.</p>
+            <div class="eval-card">
+                <h3>📊 Market Analysis</h3>
+                <p>Do you understand your target audience? Is your competitive analysis thorough?</p>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary modal-close-btn">Close</button>
+            <div class="eval-card">
+                <h3>👤 Author Platform</h3>
+                <p>What credentials and audience do you bring? Can you help promote the book?</p>
+            </div>
+            <div class="eval-card">
+                <h3>✍️ Writing Sample</h3>
+                <p>Is your writing engaging and professional? Does it match the book's tone?</p>
+            </div>
+            <div class="eval-card">
+                <h3>📣 Marketing Plan</h3>
+                <p>Do you have a concrete plan to reach readers? What assets can you leverage?</p>
+            </div>
+            <div class="eval-card">
+                <h3>📚 Competitive Titles</h3>
+                <p>How does your book compare to existing titles? What makes it unique?</p>
             </div>
         </div>
     </div>
+</section>
 
-    <!-- NDA Modal -->
-    <div id="nda-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Non-Disclosure Agreement</h2>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <h3>PROJECT EVALUATION NDA</h3>
-                <p><strong>NON-DISCLOSURE AGREEMENT</strong></p>
-                
-                <p>This non-disclosure agreement ("NDA") is between Write It Great LLC ("Company") and the submitting party ("Customer") as of the date of submission (the "Effective Date"). The NDA relates to the revelation of certain proprietary and/or confidential information by the Customer during the course of evaluating a potential working relationship. The terms and the obligations of both parties under this NDA shall come into effect immediately and shall be binding upon their respective heirs, successors, assigns, and affiliates.</p>
-                
-                <h4>1. CONFIDENTIAL INFORMATION</h4>
-                <p>The Company acknowledges and agrees that all information, including without limitation, all content, writings, work product, notes, and diagrams ("Confidential Information"), is of great value to the Customer. Accordingly, the Company agrees not to divulge to anyone, either during or after the term of this NDA, any Confidential Information obtained by the Company. Upon the expiration or termination of this NDA, the Company agrees to make no further use of any Confidential Information. The Company may only disclose Confidential Information to third parties upon the express written consent of the Customer. The provisions of this Section shall survive the expiration or termination of this NDA.</p>
-                
-                <h4>2. ASSIGNMENT</h4>
-                <p>The Customer and the Company may assign this NDA, in whole or in part, to any party provided that such party assumes and agrees in writing to keep and perform all obligations of the NDA hereunder.</p>
-                
-                <h4>3. BINDING EFFECT</h4>
-                <p>This NDA shall inure to the benefit of and be binding on the Company's heirs, executors, administrators, successors, and assigns, and on the Customer's successors, assigns, licensees, and grantees.</p>
-                
-                <h4>4. TIME PERIODS</h4>
-                <p>This NDA and the Company's duty to hold Confidential Information in confidence shall remain in effect until whichever of the following occurs first: (a) the Customer sends the Company written notice releasing it from this Provision, or (b) Confidential Information disclosed under this Provision ceases to be confidential.</p>
-                
-                <h4>5. BREACH</h4>
-                <p>The Company appreciates the value of information and/or knowledge to be gained as a result of this NDA. In the event of disclosure prohibited by the terms of this NDA and/or breach of this NDA by the Company, the Company shall be liable to the Customer for any and all loss, whether tangible or intangible, including monetary loss of any kind and/or loss of goodwill. The Parties hereby acknowledge and agree that monetary damages would not be a sufficient remedy for any breach of this NDA. The Customer shall be entitled to seek injunctive or other equitable relief to remedy any breach or threatened breach by the Company and such remedy shall not be deemed the exclusive remedy for any breach of this NDA, but shall be in addition to all other rights and remedies available at law or equity.</p>
-                
-                <h4>6. RELATIONSHIPS</h4>
-                <p>Nothing contained in this Provision shall be deemed to constitute either party a partner, joint venturer, or employee of the other party for any purpose.</p>
-                
-                <h4>7. SEVERABILITY</h4>
-                <p>If a court finds any provision of this NDA invalid or unenforceable, the remainder of this NDA shall remain in effect to the intent of the parties.</p>
-                
-                <h4>8. WAIVER</h4>
-                <p>The failure to exercise any right provided in this NDA shall not be a waiver of prior or subsequent rights.</p>
-                
-                <h4>9. SUCCESSOR AND ASSIGNS</h4>
-                <p>This NDA and each party's obligations shall be binding on the representatives, assigns and successors of such party, if any.</p>
-                
-                <p class="nda-footer">By checking the NDA agreement box, you electronically sign and agree to the terms of this Non-Disclosure Agreement.</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary modal-close-btn">Close</button>
-            </div>
-        </div>
-    </div>
+<div id="loading-overlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p class="loading-text">Evaluating your proposal...</p>
+    <p class="loading-subtext">This may take 30-60 seconds</p>
+</div>
+{% endblock %}
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; {{ now.year if now else '2025' }} Write It Great LLC. All rights reserved.</p>
-            <p class="footer-links">
-                <a href="https://www.writeitgreat.com">Home</a>
-                <a href="https://www.writeitgreat.com/services">Services</a>
-                <a href="https://www.writeitgreat.com/about">About</a>
-                <a href="mailto:hello@writeitgreat.com">Contact</a>
-            </p>
-        </div>
-    </footer>
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('proposal-form');
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('proposal_file');
+    const uploadText = document.getElementById('upload-text');
+    const selectedFile = document.getElementById('selected-file');
+    const selectedFilename = document.getElementById('selected-filename');
+    const loadingOverlay = document.getElementById('loading-overlay');
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
-</html>
+    // File upload handling
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            updateFileDisplay();
+        }
+    });
+
+    fileInput.addEventListener('change', updateFileDisplay);
+
+    function updateFileDisplay() {
+        if (fileInput.files.length > 0) {
+            uploadText.classList.add('hidden');
+            selectedFile.classList.remove('hidden');
+            selectedFilename.textContent = fileInput.files[0].name;
+        } else {
+            uploadText.classList.remove('hidden');
+            selectedFile.classList.add('hidden');
+        }
+    }
+
+    // Form submission
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Remove existing errors
+        const existingError = form.querySelector('.error-message');
+        if (existingError) existingError.remove();
+        
+        loadingOverlay.classList.remove('hidden');
+        
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/api/evaluate', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            console.log('API Response:', data);
+            
+            if (data.success && data.proposal_id) {
+                window.location.href = '/results/' + data.proposal_id;
+            } else {
+                loadingOverlay.classList.add('hidden');
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = data.error || 'An error occurred. Please try again.';
+                form.querySelector('.submit-section').before(errorDiv);
+            }
+        } catch (error) {
+            console.error('Fetch error:', error);
+            loadingOverlay.classList.add('hidden');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = 'Network error. Please try again.';
+            form.querySelector('.submit-section').before(errorDiv);
+        }
+    });
+});
+</script>
+{% endblock %}
