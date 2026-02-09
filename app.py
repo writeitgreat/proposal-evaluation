@@ -54,7 +54,8 @@ SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
 SMTP_USER = os.environ.get('SMTP_USER', '')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
-TEAM_EMAILS = os.environ.get('TEAM_EMAILS', 'anna@writeitgreat.com').split(',')
+FROM_EMAIL = os.environ.get('FROM_EMAIL', '') or SMTP_USER
+TEAM_EMAILS = (os.environ.get('TEAM_EMAIL') or os.environ.get('TEAM_EMAILS') or 'anna@writeitgreat.com').split(',')
 
 # Status options for proposals
 STATUS_OPTIONS = [
@@ -267,7 +268,7 @@ def send_email(to_email, subject, html_content, attachments=None):
     
     try:
         msg = MIMEMultipart()
-        msg['From'] = SMTP_USER
+        msg['From'] = FROM_EMAIL
         msg['To'] = to_email
         msg['Subject'] = subject
         
