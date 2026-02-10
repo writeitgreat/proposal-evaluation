@@ -190,6 +190,17 @@
                 {% endif %}
                 <a href="{{ url_for('results', submission_id=proposal.submission_id) }}" class="btn btn-outline" style="width: 100%; margin-top: 0.5rem; text-align: center;">View Public Page</a>
             </div>
+
+            <div class="detail-section">
+                <h3>Original Proposal</h3>
+                {% if proposal.proposal_text %}
+                <a href="{{ url_for('view_proposal_text', submission_id=proposal.submission_id) }}" class="btn btn-primary" style="width: 100%; text-align: center;">View Full Proposal</a>
+                <a href="{{ url_for('download_proposal_text', submission_id=proposal.submission_id) }}" class="btn btn-outline" style="width: 100%; margin-top: 0.5rem; text-align: center;">Download as .txt</a>
+                <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem; text-align: center;">{{ "{:,}".format(proposal.proposal_text|length) }} characters of extracted text</p>
+                {% else %}
+                <p style="color: var(--gray-500); text-align: center;">No proposal text available</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

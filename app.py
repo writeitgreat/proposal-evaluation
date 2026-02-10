@@ -641,7 +641,10 @@ def send_team_notification(proposal):
 
                 {'<h2>Score Breakdown</h2><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background: #2D1B69; color: white;"><th style="padding: 10px; text-align: left;">Category</th><th style="padding: 10px; text-align: center;">Score</th></tr>' + score_rows + '</table>' if score_rows else ''}
 
-                <p style="margin-top: 20px;"><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Full Proposal</a></p>
+                <div style="margin-top: 20px;">
+                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Evaluation</a>
+                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}/view-proposal" style="display: inline-block; padding: 12px 24px; background: #2D1B69; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px;">Read Original Proposal</a>
+                </div>
             </div>
         </body>
         </html>
@@ -920,6 +923,33 @@ def admin_proposal_detail(submission_id):
                          proposal=proposal, 
                          evaluation=evaluation,
                          status_options=STATUS_OPTIONS)
+
+
+@app.route('/admin/proposal/<submission_id>/view-proposal')
+@login_required
+def view_proposal_text(submission_id):
+    """View the original submitted proposal text"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    return render_template('admin_view_proposal.html', proposal=proposal)
+
+
+@app.route('/admin/proposal/<submission_id>/download-proposal')
+@login_required
+def download_proposal_text(submission_id):
+    """Download the original submitted proposal text as a .txt file"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    if not proposal.proposal_text:
+        flash('No proposal text available for this submission.', 'error')
+        return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
+
+    text_buffer = BytesIO(proposal.proposal_text.encode('utf-8'))
+    filename = f"{proposal.author_name.replace(' ', '_')}_{proposal.submission_id}_proposal.txt"
+    return send_file(
+        text_buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='text/plain'
+    )
 
 
 @app.route('/admin/proposal/<submission_id>/resend-author-email', methods=['POST'])
