@@ -4,56 +4,84 @@
     <meta charset="UTF-8">
     <title>Book Proposal Evaluation - {{ proposal.book_title }}</title>
     <style>
-        @page { size: letter; margin: 1in; }
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #333; }
-        .header { text-align: center; border-bottom: 3px solid #4a2c5a; padding-bottom: 20px; margin-bottom: 30px; }
-        .logo { font-size: 24pt; font-weight: bold; color: #4a2c5a; }
-        .tagline { font-size: 10pt; color: #666; margin-top: 5px; }
-        h1 { font-size: 18pt; color: #4a2c5a; margin: 20px 0 10px; }
-        h2 { font-size: 14pt; color: #4a2c5a; margin: 25px 0 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-        h3 { font-size: 12pt; color: #4a2c5a; margin: 15px 0 8px; }
-        .meta-info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        @page { size: letter; margin: 0.75in; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #333; }
+        .header { text-align: center; border-bottom: 3px solid #4a2c5a; padding-bottom: 15px; margin-bottom: 25px; }
+        .logo { font-size: 22pt; font-weight: bold; color: #4a2c5a; }
+        .tagline { font-size: 9pt; color: #666; margin-top: 3px; }
+        h1 { font-size: 16pt; color: #4a2c5a; margin: 15px 0 10px; }
+        h2 { font-size: 13pt; color: #4a2c5a; margin: 20px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        h3 { font-size: 11pt; color: #4a2c5a; margin: 12px 0 6px; }
+
+        .meta-info { background: #f5f5f5; padding: 12px; margin-bottom: 15px; }
         .meta-info table { width: 100%; }
-        .meta-info td { padding: 5px 10px; }
-        .meta-info .label { font-weight: bold; color: #666; width: 140px; }
-        .tier-box { text-align: center; padding: 20px; margin: 20px 0; border-radius: 8px; }
-        .tier-a { background: #dcfce7; border: 2px solid #22c55e; }
-        .tier-b { background: #dbeafe; border: 2px solid #3b82f6; }
-        .tier-c { background: #fef3c7; border: 2px solid #f59e0b; }
-        .tier-d { background: #fee2e2; border: 2px solid #ef4444; }
-        .tier-letter { font-size: 48pt; font-weight: bold; }
+        .meta-info td { padding: 4px 8px; font-size: 9.5pt; }
+        .meta-info .label { font-weight: bold; color: #666; width: 130px; }
+
+        .tier-box { text-align: center; padding: 15px; margin: 15px 0; border: 2px solid #ccc; }
+        .tier-a { background: #dcfce7; border-color: #22c55e; }
+        .tier-b { background: #dbeafe; border-color: #3b82f6; }
+        .tier-c { background: #fef3c7; border-color: #f59e0b; }
+        .tier-d { background: #fee2e2; border-color: #ef4444; }
+        .tier-letter { font-size: 36pt; font-weight: bold; }
         .tier-a .tier-letter { color: #16a34a; }
         .tier-b .tier-letter { color: #2563eb; }
         .tier-c .tier-letter { color: #d97706; }
         .tier-d .tier-letter { color: #dc2626; }
-        .summary { background: #f8f6f9; padding: 15px; border-left: 4px solid #4a2c5a; margin: 20px 0; font-style: italic; }
-        .advance-box { background: #fef3c7; border: 2px solid #c9a962; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0; }
-        .advance-range { font-size: 20pt; font-weight: bold; color: #4a2c5a; }
-        .category-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        .category-table th { background: #4a2c5a; color: white; padding: 10px; text-align: left; }
-        .category-table td { padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
-        .category-table tr:nth-child(even) { background: #f9f9f9; }
-        .score-cell { text-align: center; font-weight: bold; font-size: 14pt; width: 80px; }
+        .tier-desc { font-size: 9pt; color: #666; margin-top: 5px; }
+
+        .summary { background: #f8f6f9; padding: 12px; border-left: 4px solid #4a2c5a; margin: 15px 0; font-style: italic; font-size: 10pt; }
+
+        .advance-box { background: #fef3c7; border: 2px solid #c9a962; padding: 12px; text-align: center; margin: 15px 0; }
+        .advance-range { font-size: 16pt; font-weight: bold; color: #4a2c5a; }
+        .advance-note { font-size: 9pt; color: #666; margin-top: 5px; }
+
+        .score-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .score-table th { background: #4a2c5a; color: white; padding: 8px; text-align: left; font-size: 9.5pt; }
+        .score-table td { padding: 8px; border-bottom: 1px solid #ddd; font-size: 9.5pt; vertical-align: top; }
+        .score-table tr:nth-child(even) { background: #f9f9f9; }
+        .score-cell { text-align: center; font-weight: bold; font-size: 12pt; width: 70px; }
         .score-high { color: #16a34a; }
         .score-mid { color: #d97706; }
         .score-low { color: #dc2626; }
-        .list-section { margin: 15px 0; padding: 15px; border-radius: 5px; }
-        .strengths { background: #dcfce7; border-left: 4px solid #22c55e; }
-        .concerns { background: #fef3c7; border-left: 4px solid #f59e0b; }
-        .next-steps { background: #f3e8ff; border-left: 4px solid #4a2c5a; }
-        .list-section ul, .list-section ol { margin: 10px 0; padding-left: 25px; }
-        .list-section li { margin-bottom: 8px; }
-        .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #4a2c5a; text-align: center; font-size: 9pt; color: #666; }
+
+        .list-section { margin: 10px 0; padding: 12px; }
+        .strengths-section { background: #dcfce7; border-left: 4px solid #22c55e; }
+        .improvements-section { background: #fef3c7; border-left: 4px solid #f59e0b; }
+        .concerns-section { background: #fee2e2; border-left: 4px solid #ef4444; }
+        .next-steps-section { background: #f3e8ff; border-left: 4px solid #4a2c5a; }
+        .list-section ul, .list-section ol { margin: 8px 0; padding-left: 20px; }
+        .list-section li { margin-bottom: 5px; font-size: 9.5pt; }
+
+        .category-detail { margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-left: 4px solid #4a2c5a; }
+        .category-detail-name { font-size: 11pt; font-weight: bold; color: #4a2c5a; }
+        .category-detail-score { font-size: 12pt; font-weight: bold; float: right; }
+        .category-detail p { margin: 6px 0; font-size: 9.5pt; }
+        .category-subsection { margin-top: 8px; padding: 8px; background: #fff; }
+        .category-subsection strong { font-size: 8.5pt; color: #5B4B8A; text-transform: uppercase; letter-spacing: 0.3px; }
+        .category-subsection p { margin: 4px 0; font-size: 9pt; }
+        .category-subsection ul { margin: 4px 0 0; padding-left: 18px; }
+        .category-subsection li { font-size: 9pt; margin-bottom: 3px; }
+
+        .excellence-note { background: #f0fdf4; border-left: 3px solid #22c55e; padding: 8px; margin-top: 8px; }
+        .excellence-note strong { color: #16a34a; font-size: 8.5pt; }
+        .excellence-note p { font-style: italic; font-size: 9pt; color: #166534; margin: 3px 0 0; }
+
+        .priority-item { margin-bottom: 10px; padding: 10px; background: #fff; border-left: 4px solid #4a2c5a; }
+        .priority-item strong { color: #4a2c5a; }
+        .priority-meta { font-size: 8.5pt; color: #666; margin-top: 3px; }
+
+        .path-box { background: #f0fdf4; border: 1px solid #22c55e; padding: 12px; margin: 15px 0; }
+        .path-box h3 { color: #16a34a; margin-top: 0; }
+        .path-box p { color: #166534; font-size: 9.5pt; }
+
         .page-break { page-break-before: always; }
-        .category-detail { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; border-left: 4px solid #4a2c5a; }
-        .category-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .category-detail-name { font-size: 13pt; font-weight: bold; color: #4a2c5a; }
-        .category-detail-score { font-size: 14pt; font-weight: bold; }
-        .category-detail p { margin: 8px 0; font-size: 10.5pt; }
-        .priority-actions { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; }
-        .priority-actions strong { font-size: 9pt; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-        .priority-actions ul { margin: 5px 0 0; padding-left: 20px; }
-        .priority-actions li { font-size: 10pt; margin-bottom: 4px; }
+
+        .footer { margin-top: 30px; padding-top: 15px; border-top: 2px solid #4a2c5a; text-align: center; font-size: 8pt; color: #666; }
+
+        .cta-box { background: #f8f6f9; border: 2px solid #4a2c5a; padding: 15px; text-align: center; margin: 20px 0; }
+        .cta-box h3 { color: #4a2c5a; margin-top: 0; }
+        .cta-box p { font-size: 9.5pt; }
     </style>
 </head>
 <body>
@@ -70,57 +98,210 @@
             <tr><td class="label">Author:</td><td>{{ proposal.author_name }}</td></tr>
             <tr><td class="label">Submission ID:</td><td>{{ proposal.submission_id }}</td></tr>
             <tr><td class="label">Evaluation Date:</td><td>{{ proposal.submitted_at.strftime('%B %d, %Y') if proposal.submitted_at else 'N/A' }}</td></tr>
+            <tr><td class="label">Proposal Type:</td><td>{{ (proposal.proposal_type or 'full')|replace('_', ' ')|title }}</td></tr>
         </table>
     </div>
 
-    <div class="tier-box tier-{{ (proposal.tier or 'c')|lower }}">
-        <div class="tier-letter">{{ proposal.tier or 'N/A' }}-Tier</div>
-        <div>Overall Score: {{ proposal.overall_score|default(0, true)|round|int }}/100</div>
+    {% set tier = proposal.tier or 'C' %}
+    {% set total_score = evaluation.get('total_score', evaluation.get('overall_score', proposal.overall_score or 0)) %}
+    <div class="tier-box tier-{{ tier|lower }}">
+        <div class="tier-letter">{{ tier }}-Tier</div>
+        <div>Overall Score: {{ total_score|round|int }}/100</div>
+        {% if evaluation.get('tierDescription') %}
+        <div class="tier-desc">{{ evaluation.tierDescription }}</div>
+        {% endif %}
     </div>
 
     <h2>Executive Summary</h2>
-    <div class="summary">{{ evaluation.get('summary', 'This proposal has been evaluated.') }}</div>
+    <div class="summary">{{ evaluation.get('executiveSummary', '') or evaluation.get('summary', 'This proposal has been evaluated.') }}</div>
 
-    {% if evaluation.get('advance_estimate') %}
-    {% set advance = evaluation.get('advance_estimate', {}) %}
-    <div class="advance-box">
-        <div style="font-size: 10pt; color: #666;">Estimated Advance Range</div>
-        <div class="advance-range">${{ "{:,.0f}".format(advance.get('low', 0)|float) }} - ${{ "{:,.0f}".format(advance.get('high', 0)|float) }}</div>
-        <div style="font-size: 10pt; margin-top: 5px;">{{ advance.get('notes', '') }}</div>
+    <!-- Red Flags -->
+    {% set red_flags = evaluation.get('redFlags', []) or evaluation.get('red_flags', []) %}
+    {% if red_flags and red_flags|length > 0 %}
+    <h2>Red Flags</h2>
+    <div class="list-section concerns-section">
+        <ul>
+        {% for flag in red_flags %}
+            <li>{{ flag|replace('_', ' ')|title }}</li>
+        {% endfor %}
+        </ul>
     </div>
     {% endif %}
 
-    <h2>Category Scores Overview</h2>
-    <table class="category-table">
-        <thead><tr><th>Category</th><th>Score</th><th>Feedback</th></tr></thead>
+    <!-- Advance Estimate -->
+    {% set adv_est = evaluation.get('advanceEstimate', {}) %}
+    {% set adv_old = evaluation.get('advance_estimate', {}) %}
+    {% if adv_est and adv_est.get('reasoning') %}
+    <div class="advance-box">
+        <div style="font-size: 9pt; color: #666;">Estimated Advance Range</div>
+        {% if adv_est.get('viable', true) %}
+        <div class="advance-range">${{ "{:,.0f}".format(adv_est.get('lowRange', 0)|float) }} - ${{ "{:,.0f}".format(adv_est.get('highRange', 0)|float) }}</div>
+        <div class="advance-note"><strong>Confidence:</strong> {{ adv_est.get('confidence', 'N/A') }}</div>
+        {% else %}
+        <div style="font-size: 11pt; font-weight: bold; color: #4a2c5a;">Not yet viable for traditional publishing advance</div>
+        {% endif %}
+        <div class="advance-note">{{ adv_est.get('reasoning', '') }}</div>
+    </div>
+    {% elif adv_old and (adv_old.get('low') or adv_old.get('high')) %}
+    <div class="advance-box">
+        <div style="font-size: 9pt; color: #666;">Estimated Advance Range</div>
+        <div class="advance-range">${{ "{:,.0f}".format(adv_old.get('low', 0)|float) }} - ${{ "{:,.0f}".format(adv_old.get('high', 0)|float) }}</div>
+        <div class="advance-note">{{ adv_old.get('notes', '') }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Score Breakdown Table -->
+    {% set scores = evaluation.get('scores', {}) %}
+    {% set old_categories = evaluation.get('categories', {}) %}
+
+    <h2>Score Breakdown</h2>
+    {% if scores %}
+    {% set category_labels = [
+        ('marketing', 'Marketing & Platform'),
+        ('overview', 'Overview & Concept'),
+        ('credentials', 'Author Credentials'),
+        ('comps', 'Comparative Titles'),
+        ('writing', 'Sample Writing'),
+        ('outline', 'Book Outline'),
+        ('completeness', 'Completeness')
+    ] %}
+    <table class="score-table">
+        <thead><tr><th>Category</th><th style="text-align:center;">Score</th><th>Weight</th></tr></thead>
         <tbody>
-        {% for key, cat in evaluation.get('categories', {}).items() %}
+        {% for key, label in category_labels %}
+        {% set score_data = scores.get(key, {}) %}
+        {% set score = score_data.get('score', 0) if score_data is mapping else (score_data or 0) %}
+        {% set weight = score_data.get('weight', '') if score_data is mapping else '' %}
+        <tr>
+            <td><strong>{{ label }}</strong></td>
+            <td class="score-cell {% if score|float >= 70 %}score-high{% elif score|float >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|int }}</td>
+            <td style="text-align:center;">{{ weight }}%</td>
+        </tr>
+        {% endfor %}
+        <tr style="background: #f0f0f0; font-weight: bold;">
+            <td><strong>TOTAL (Weighted)</strong></td>
+            <td class="score-cell" style="color: #4a2c5a;">{{ total_score|round|int }}</td>
+            <td style="text-align:center;">100%</td>
+        </tr>
+        </tbody>
+    </table>
+    {% elif old_categories %}
+    <table class="score-table">
+        <thead><tr><th>Category</th><th style="text-align:center;">Score</th><th>Feedback</th></tr></thead>
+        <tbody>
+        {% for key, cat in old_categories.items() %}
         {% set score = cat.get('score', 0)|float %}
         <tr>
             <td><strong>{{ key|replace('_', ' ')|title }}</strong></td>
             <td class="score-cell {% if score >= 70 %}score-high{% elif score >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|round|int }}</td>
-            <td>{{ cat.get('feedback', 'No feedback available.') }}</td>
+            <td>{{ cat.get('feedback', '') }}</td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
+    {% endif %}
+
+    <!-- Strengths & Improvements -->
+    {% set strengths = evaluation.get('strengths', []) %}
+    {% set improvements = evaluation.get('improvements', []) %}
+
+    {% if strengths %}
+    <h2>Top Strengths</h2>
+    <div class="list-section strengths-section">
+        <ul>
+        {% for item in strengths %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if improvements %}
+    <h2>Key Areas for Improvement</h2>
+    <div class="list-section improvements-section">
+        <ul>
+        {% for item in improvements %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 
     <div class="page-break"></div>
 
-    <h2>Detailed Category Analysis</h2>
-    {% for key, cat in evaluation.get('categories', {}).items() %}
-    {% set score = cat.get('score', 0)|float %}
+    <!-- Detailed Category Analysis -->
+    {% set detailed = evaluation.get('detailedAnalysis', {}) %}
+    {% if detailed %}
+    <h2>Detailed Section Analysis</h2>
+    {% set analysis_categories = [
+        ('marketing', 'Marketing & Platform'),
+        ('overview', 'Overview & Concept'),
+        ('credentials', 'Author Credentials'),
+        ('comps', 'Comparative Titles'),
+        ('writing', 'Sample Writing'),
+        ('outline', 'Book Outline'),
+        ('completeness', 'Completeness')
+    ] %}
+    {% for key, label in analysis_categories %}
+    {% set analysis = detailed.get(key, {}) %}
+    {% set score_data = scores.get(key, {}) %}
+    {% set score = score_data.get('score', 0) if score_data is mapping else (score_data or 0) %}
+    {% if analysis %}
     <div class="category-detail">
-        <div class="category-detail-header">
-            <span class="category-detail-name">{{ key|replace('_', ' ')|title }}</span>
-            <span class="category-detail-score {% if score >= 70 %}score-high{% elif score >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|round|int }}/100</span>
+        <span class="category-detail-score {% if score|float >= 70 %}score-high{% elif score|float >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|int }}/100</span>
+        <span class="category-detail-name">{{ label }}</span>
+
+        {% if analysis.get('currentState') %}
+        <p><strong>Current State:</strong> {{ analysis.currentState }}</p>
+        {% endif %}
+
+        {% if analysis.get('strengths') %}
+        <div class="category-subsection">
+            <strong>Strengths:</strong>
+            <p>{{ analysis.strengths }}</p>
         </div>
+        {% endif %}
+
+        {% if analysis.get('gaps') %}
+        <div class="category-subsection">
+            <strong>Areas for Improvement:</strong>
+            <p>{{ analysis.gaps }}</p>
+        </div>
+        {% endif %}
+
+        {% if analysis.get('exampleOfExcellence') and analysis.exampleOfExcellence != 'N/A' %}
+        <div class="excellence-note">
+            <strong>What A-Tier Looks Like:</strong>
+            <p>{{ analysis.exampleOfExcellence }}</p>
+        </div>
+        {% endif %}
+
+        {% if analysis.get('actionItems') and analysis.actionItems|length > 0 %}
+        <div class="category-subsection">
+            <strong>Action Items:</strong>
+            <ul>
+            {% for item in analysis.actionItems %}
+                <li>{{ item }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% elif old_categories %}
+    <h2>Detailed Category Analysis</h2>
+    {% for key, cat in old_categories.items() %}
+    <div class="category-detail">
+        <span class="category-detail-score {% if cat.get('score', 0)|float >= 70 %}score-high{% elif cat.get('score', 0)|float >= 50 %}score-mid{% else %}score-low{% endif %}">{{ cat.get('score', 0)|float|round|int }}/100</span>
+        <span class="category-detail-name">{{ key|replace('_', ' ')|title }}</span>
         <p>{{ cat.get('feedback', 'No feedback available.') }}</p>
         {% if cat.get('priority_actions') %}
-        <div class="priority-actions">
+        <div class="category-subsection">
             <strong>Priority Actions:</strong>
             <ul>
-            {% for action in cat.get('priority_actions', []) %}
+            {% for action in cat.priority_actions %}
                 <li>{{ action }}</li>
             {% endfor %}
             </ul>
@@ -128,44 +309,59 @@
         {% endif %}
     </div>
     {% endfor %}
+    {% endif %}
 
-    {% if evaluation.get('strengths') %}
-    <h2>Strengths</h2>
-    <div class="list-section strengths">
-        <ul>
-        {% for item in evaluation.get('strengths', []) %}
-            <li>{{ item }}</li>
-        {% endfor %}
-        </ul>
+    <!-- Priority Action Plan -->
+    {% set priority_plan = evaluation.get('priorityActionPlan', []) %}
+    {% if priority_plan and priority_plan|length > 0 %}
+    <h2>Priority Action Plan</h2>
+    {% for action in priority_plan %}
+    <div class="priority-item">
+        <strong>#{{ action.get('priority', loop.index) }}: {{ action.get('action', '') }}</strong>
+        <div class="priority-meta">
+            <strong>Timeline:</strong> {{ action.get('timeline', '') }}
+            {% if action.get('impact') %} | <strong>Impact:</strong> {{ action.impact }}{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Path to A-Tier -->
+    {% if evaluation.get('pathToATier') %}
+    <div class="path-box">
+        <h3>Your Path to A-Tier</h3>
+        <p>{{ evaluation.pathToATier }}</p>
     </div>
     {% endif %}
 
-    {% if evaluation.get('red_flags') %}
-    <h2>Areas of Concern</h2>
-    <div class="list-section concerns">
-        <ul>
-        {% for item in evaluation.get('red_flags', []) %}
-            <li>{{ item }}</li>
-        {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-
-    {% if evaluation.get('next_steps') %}
+    <!-- Recommended Next Steps -->
+    {% set next_steps = evaluation.get('recommendedNextSteps', []) or evaluation.get('next_steps', []) %}
+    {% if next_steps %}
     <h2>Recommended Next Steps</h2>
-    <div class="list-section next-steps">
+    <div class="list-section next-steps-section">
         <ol>
-        {% for item in evaluation.get('next_steps', []) %}
+        {% for item in next_steps %}
             <li>{{ item }}</li>
         {% endfor %}
         </ol>
     </div>
     {% endif %}
 
+    <!-- CTA for C/D Tiers -->
+    {% if tier in ['C', 'D'] %}
+    <div class="cta-box">
+        <h3>Ready to Strengthen Your Proposal?</h3>
+        <p>Our team of expert ghostwriters and literary consultants can help you transform your proposal into a publisher-ready submission.</p>
+        <p><strong>Contact us: hello@writeitgreat.com</strong></p>
+        <p>www.writeitgreat.com</p>
+    </div>
+    {% endif %}
+
     <div class="footer">
         <p><strong>Write It Great</strong> | Elite Ghostwriting & Publishing Services</p>
-        <p>www.writeitgreat.com | info@writeitgreat.com</p>
-        <p>&copy; 2026 Write It Great. All rights reserved.</p>
+        <p>www.writeitgreat.com | hello@writeitgreat.com</p>
+        <p>&copy; 2026 Write It Great LLC. All rights reserved.</p>
+        <p style="font-size: 7pt; margin-top: 5px;">This AI-assisted evaluation is intended as guidance only and does not guarantee publishing success.</p>
     </div>
 </body>
 </html>

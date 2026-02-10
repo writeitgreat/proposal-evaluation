@@ -7,7 +7,6 @@ Flask application with database, admin dashboard, status tracking, and email not
 import os
 import json
 import uuid
-import tempfile
 import smtplib
 import traceback
 import threading
@@ -16,14 +15,12 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
-from functools import wraps
-
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from weasyprint import HTML
+from xhtml2pdf import pisa
 import openai
 from docx import Document
 import PyPDF2
@@ -165,75 +162,264 @@ def extract_text_from_docx(file):
         return ""
 
 
-def evaluate_proposal(proposal_text, proposal_type='full'):
-    """Evaluate proposal using OpenAI"""
-    
-    system_prompt = """You are an expert book proposal evaluator for Write It Great, an elite ghostwriting and publishing services firm.
-
-Evaluate the proposal and return a JSON object with this exact structure:
-{
-    "tier": "A" or "B" or "C" or "D",
-    "overall_score": 0-100,
-    "summary": "2-3 sentence overall assessment",
-    "red_flags": ["list of concerns"],
-    "strengths": ["list of strengths"],
-    "advance_estimate": {
-        "low": 0,
-        "high": 0,
-        "notes": "explanation"
-    },
-    "categories": {
-        "concept": {"score": 0-100, "feedback": "detailed feedback", "priority_actions": ["actions"]},
-        "market": {"score": 0-100, "feedback": "detailed feedback", "priority_actions": ["actions"]},
-        "author_platform": {"score": 0-100, "feedback": "detailed feedback", "priority_actions": ["actions"]},
-        "writing_sample": {"score": 0-100, "feedback": "detailed feedback", "priority_actions": ["actions"]},
-        "marketing_plan": {"score": 0-100, "feedback": "detailed feedback", "priority_actions": ["actions"]},
-        "competitive_analysis": {"score": 0-100, "feedback": "detailed feedback", "priority_actions": ["actions"]}
-    },
-    "next_steps": ["prioritized list of 3-5 most important next steps"]
+# Scoring weights for full proposals
+FULL_WEIGHTS = {
+    'marketing': 0.30,
+    'overview': 0.20,
+    'credentials': 0.15,
+    'comps': 0.10,
+    'writing': 0.15,
+    'outline': 0.05,
+    'completeness': 0.05
 }
 
-TIER DEFINITIONS:
-- A-Tier (80-100): Publisher-ready. Strong concept, established platform.
-- B-Tier (60-79): Promising with work needed.
-- C-Tier (40-59): Significant development needed.
-- D-Tier (0-39): Not ready for traditional publishing.
+MARKETING_ONLY_WEIGHTS = {
+    'marketing': 1.00, 'overview': 0.00, 'credentials': 0.00,
+    'comps': 0.00, 'writing': 0.00, 'outline': 0.00, 'completeness': 0.00
+}
 
-ADVANCE ESTIMATES (non-fiction):
-- A-Tier: $15,000-$30,000
-- B-Tier: $0-$10,000
-- C-Tier: $0-$5,000
-- D-Tier: Self-publishing recommended"""
+NO_MARKETING_WEIGHTS = {
+    'marketing': 0.00, 'overview': 0.29, 'credentials': 0.21,
+    'comps': 0.14, 'writing': 0.21, 'outline': 0.07, 'completeness': 0.08
+}
 
-    type_instructions = ""
+
+def get_weights_for_type(proposal_type):
     if proposal_type == 'marketing_only':
-        type_instructions = "\n\nNOTE: This is MARKETING-ONLY. Focus on marketing plan and author platform."
+        return MARKETING_ONLY_WEIGHTS
     elif proposal_type == 'no_marketing':
-        type_instructions = "\n\nNOTE: This EXCLUDES marketing materials. Score marketing_plan as 0."
+        return NO_MARKETING_WEIGHTS
+    return FULL_WEIGHTS
+
+
+def calculate_weighted_score(scores, proposal_type):
+    weights = get_weights_for_type(proposal_type)
+    total = 0
+    for category, weight in weights.items():
+        score_data = scores.get(category, 0)
+        score = score_data.get('score', 0) if isinstance(score_data, dict) else score_data
+        total += float(score or 0) * weight
+    return round(total, 2)
+
+
+def determine_tier(score):
+    if score >= 85:
+        return 'A'
+    elif score >= 70:
+        return 'B'
+    elif score >= 50:
+        return 'C'
+    return 'D'
+
+
+def get_tier_description(tier):
+    return {
+        'A': 'Exceptional - Your proposal demonstrates strong potential for top-tier publishers.',
+        'B': 'Strong Foundation - With targeted improvements, your proposal could reach A-tier status.',
+        'C': 'Developing - Your proposal shows promise but needs significant strengthening in key areas.',
+        'D': 'Early Stage - Your proposal needs substantial work before submission to publishers.'
+    }.get(tier, '')
+
+
+def evaluate_proposal(proposal_text, proposal_type='full', author_name='', book_title=''):
+    """Evaluate proposal using OpenAI with comprehensive analysis"""
+
+    if proposal_type == 'marketing_only':
+        evaluation_focus = "You are evaluating ONLY the Marketing & Platform section. Score all other categories as 0."
+    elif proposal_type == 'no_marketing':
+        evaluation_focus = "This proposal does NOT include a Marketing section. Score Marketing as 0. Evaluate all other sections normally."
+    else:
+        evaluation_focus = "This is a FULL proposal submission. Evaluate all categories comprehensively."
+
+    system_prompt = """You are an elite literary agent with 25+ years of experience evaluating book proposals for major publishers. You have placed hundreds of books with advances ranging from $50,000 to $2 million+. Your evaluations are known for being thorough, actionable, and honest.
+
+Your evaluation style:
+- Be specific and cite examples from the actual proposal text
+- Provide actionable feedback that authors can implement immediately
+- Be encouraging but honest about weaknesses
+- Think like a publisher evaluating commercial viability"""
+
+    user_prompt = f"""{evaluation_focus}
+
+Evaluate this book proposal comprehensively.
+
+AUTHOR: {author_name}
+BOOK TITLE: {book_title}
+
+PROPOSAL TEXT:
+{proposal_text[:50000]}
+
+---
+
+Provide your evaluation as a JSON object with this EXACT structure:
+
+{{
+    "executiveSummary": "<3-5 sentence executive summary of strengths and areas for improvement>",
+
+    "redFlags": ["<list critical issues like: no_platform, weak_credentials, oversaturated_market, poor_writing_quality, incomplete_proposal, unrealistic_claims, no_clear_audience, derivative_concept>"],
+
+    "scores": {{
+        "marketing": {{"score": <0-100>, "weight": 30}},
+        "overview": {{"score": <0-100>, "weight": 20}},
+        "credentials": {{"score": <0-100>, "weight": 15}},
+        "comps": {{"score": <0-100>, "weight": 10}},
+        "writing": {{"score": <0-100>, "weight": 15}},
+        "outline": {{"score": <0-100>, "weight": 5}},
+        "completeness": {{"score": <0-100>, "weight": 5}}
+    }},
+
+    "detailedAnalysis": {{
+        "marketing": {{
+            "currentState": "<2-3 sentences describing current state>",
+            "strengths": "<what's working well>",
+            "gaps": "<what's missing or weak>",
+            "exampleOfExcellence": "<specific example of what A-tier looks like for this category>",
+            "actionItems": ["<specific action 1>", "<specific action 2>", "<specific action 3>"]
+        }},
+        "overview": {{
+            "currentState": "<2-3 sentences>",
+            "strengths": "<what's working>",
+            "gaps": "<what's missing>",
+            "exampleOfExcellence": "<A-tier example>",
+            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+        }},
+        "credentials": {{
+            "currentState": "<2-3 sentences>",
+            "strengths": "<what's working>",
+            "gaps": "<what's missing>",
+            "exampleOfExcellence": "<A-tier example>",
+            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+        }},
+        "comps": {{
+            "currentState": "<2-3 sentences>",
+            "strengths": "<what's working>",
+            "gaps": "<what's missing>",
+            "exampleOfExcellence": "<A-tier example>",
+            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+        }},
+        "writing": {{
+            "currentState": "<2-3 sentences>",
+            "strengths": "<what's working>",
+            "gaps": "<what's missing>",
+            "exampleOfExcellence": "<A-tier example>",
+            "actionItems": ["<action 1>", "<action 2>", "<action 3>"],
+            "writingExamples": {{
+                "strongPassage": "<quote a strong passage from the proposal if available>",
+                "improvementExample": "<quote a passage that could be improved>"
+            }}
+        }},
+        "outline": {{
+            "currentState": "<2-3 sentences>",
+            "strengths": "<what's working>",
+            "gaps": "<what's missing>",
+            "exampleOfExcellence": "<A-tier example>",
+            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+        }},
+        "completeness": {{
+            "currentState": "<2-3 sentences>",
+            "strengths": "<what's working>",
+            "gaps": "<what's missing>",
+            "exampleOfExcellence": "<A-tier example>",
+            "actionItems": ["<action 1>", "<action 2>", "<action 3>"]
+        }}
+    }},
+
+    "strengths": ["<top strength 1>", "<top strength 2>", "<top strength 3>"],
+    "improvements": ["<top improvement 1>", "<top improvement 2>", "<top improvement 3>"],
+
+    "priorityActionPlan": [
+        {{"priority": 1, "action": "<most important action>", "timeline": "<e.g., This week>", "impact": "<why this matters>"}},
+        {{"priority": 2, "action": "<second action>", "timeline": "<e.g., Next 2 weeks>", "impact": "<why this matters>"}},
+        {{"priority": 3, "action": "<third action>", "timeline": "<e.g., Next month>", "impact": "<why this matters>"}}
+    ],
+
+    "pathToATier": "<2-3 sentences describing the specific path this author needs to take to reach A-tier status>",
+
+    "advanceEstimate": {{
+        "viable": <true or false>,
+        "lowRange": <number or 0>,
+        "highRange": <number or 0>,
+        "confidence": "<Low, Medium, or High>",
+        "reasoning": "<2-3 sentences explaining the estimate>"
+    }},
+
+    "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"]
+}}
+
+SCORING GUIDELINES:
+- 90-100: Exceptional, ready for top-tier publishers
+- 80-89: Strong, minor improvements needed
+- 70-79: Good foundation, some gaps to address
+- 60-69: Promising but needs significant work
+- 50-59: Weak, major revisions required
+- Below 50: Not ready for submission
+
+Return ONLY the JSON object, no other text."""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": system_prompt + type_instructions},
-                {"role": "user", "content": f"Evaluate this book proposal:\n\n{proposal_text[:15000]}"}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.7
+            temperature=0.3,
+            max_tokens=6000
         )
-        
-        evaluation = json.loads(response.choices[0].message.content)
+
+        response_text = response.choices[0].message.content.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+
+        evaluation = json.loads(response_text.strip())
+
+        # Calculate weighted total score
+        scores = evaluation.get('scores', {})
+        evaluation['total_score'] = calculate_weighted_score(scores, proposal_type)
+        evaluation['tier'] = determine_tier(evaluation['total_score'])
+        evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
+        evaluation['proposal_type'] = proposal_type
+
+        # Backward-compat aliases so old templates/emails still work
+        evaluation['overall_score'] = evaluation['total_score']
+        evaluation['summary'] = evaluation.get('executiveSummary', '')
+        evaluation['red_flags'] = evaluation.get('redFlags', [])
+        evaluation['next_steps'] = evaluation.get('recommendedNextSteps', [])
+        adv = evaluation.get('advanceEstimate', {})
+        evaluation['advance_estimate'] = {
+            'low': adv.get('lowRange', 0),
+            'high': adv.get('highRange', 0),
+            'notes': adv.get('reasoning', '')
+        }
+        # Map scores to old categories format for backward compat
+        cats = {}
+        for key, score_data in scores.items():
+            s = score_data.get('score', 0) if isinstance(score_data, dict) else score_data
+            da = evaluation.get('detailedAnalysis', {}).get(key, {})
+            cats[key] = {
+                'score': s,
+                'feedback': da.get('currentState', ''),
+                'priority_actions': da.get('actionItems', [])
+            }
+        evaluation['categories'] = cats
+
         return evaluation
     except Exception as e:
         print(f"Evaluation error: {e}")
+        traceback.print_exc()
         return None
 
 
 def generate_pdf_report(proposal):
-    """Generate PDF report for proposal"""
+    """Generate PDF report for proposal using xhtml2pdf"""
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
 
-    # Ensure numeric values are properly typed to prevent format() errors
+    # Ensure numeric values are properly typed
     advance = evaluation.get('advance_estimate')
     if advance and isinstance(advance, dict):
         try:
@@ -242,6 +428,23 @@ def generate_pdf_report(proposal):
         except (ValueError, TypeError):
             advance['low'] = 0
             advance['high'] = 0
+
+    adv_est = evaluation.get('advanceEstimate')
+    if adv_est and isinstance(adv_est, dict):
+        try:
+            adv_est['lowRange'] = float(adv_est.get('lowRange', 0) or 0)
+            adv_est['highRange'] = float(adv_est.get('highRange', 0) or 0)
+        except (ValueError, TypeError):
+            adv_est['lowRange'] = 0
+            adv_est['highRange'] = 0
+
+    scores = evaluation.get('scores', {})
+    for key, score_data in scores.items():
+        if isinstance(score_data, dict):
+            try:
+                score_data['score'] = float(score_data.get('score', 0) or 0)
+            except (ValueError, TypeError):
+                score_data['score'] = 0
 
     categories = evaluation.get('categories', {})
     for key, cat in categories.items():
@@ -252,12 +455,13 @@ def generate_pdf_report(proposal):
                 cat['score'] = 0
 
     html = render_template('report_pdf.html', proposal=proposal, evaluation=evaluation)
-    try:
-        base_url = request.host_url
-    except RuntimeError:
-        base_url = os.environ.get('APP_URL', 'http://localhost:5000') + '/'
-    pdf = HTML(string=html, base_url=base_url).write_pdf()
-    return pdf
+    pdf_buffer = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf_buffer)
+    if pisa_status.err:
+        print(f"PDF generation error: {pisa_status.err}")
+        raise Exception(f"PDF generation failed with {pisa_status.err} errors")
+    pdf_buffer.seek(0)
+    return pdf_buffer.getvalue()
 
 
 def send_email(to_email, subject, html_content, attachments=None):
@@ -286,6 +490,11 @@ def send_email(to_email, subject, html_content, attachments=None):
             server.send_message(msg)
         
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"Email SMTP auth error: {e}")
+        print("HINT: Gmail requires an App Password (16-char) when 2FA is enabled.")
+        print("Generate one at: https://myaccount.google.com/apppasswords")
+        return False
     except Exception as e:
         print(f"Email error: {e}")
         return False
@@ -296,6 +505,9 @@ def send_author_notification(proposal):
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
 
     score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
+    summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'See attached report for details.')
+    tier_desc = evaluation.get('tierDescription', '')
+    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
 
     subject = f"Your Book Proposal Evaluation - {proposal.book_title}"
 
@@ -303,24 +515,35 @@ def send_author_notification(proposal):
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #4a2c5a;">Your Book Proposal Evaluation Results</h2>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="color: #4a2c5a; margin-bottom: 5px;">Write It Great</h1>
+                <p style="color: #666; font-style: italic;">Elite Ghostwriting &amp; Publishing Services</p>
+            </div>
 
             <p>Dear {proposal.author_name},</p>
 
-            <p>Thank you for submitting your book proposal for <strong>"{proposal.book_title}"</strong> to Write It Great.</p>
+            <p>Thank you for submitting your book proposal for <strong>"{proposal.book_title}"</strong> to Write It Great. Our AI-powered evaluation system has completed a comprehensive analysis of your proposal.</p>
 
-            <div style="background: #f8f6f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #4a2c5a;">Evaluation Summary</h3>
-                <p><strong>Classification:</strong> {proposal.tier or 'N/A'}-Tier</p>
-                <p><strong>Overall Score:</strong> {score_display}/100</p>
-                <p><strong>Summary:</strong> {evaluation.get('summary', 'See attached report for details.')}</p>
+            <div style="background: #f8f6f9; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                <div style="font-size: 48px; font-weight: bold; color: {'#2e7d32' if proposal.tier == 'A' else '#1976d2' if proposal.tier == 'B' else '#f57c00' if proposal.tier == 'C' else '#d32f2f'};">{proposal.tier or 'N/A'}-Tier</div>
+                <div style="font-size: 24px; color: #4a2c5a; margin: 10px 0;">{score_display}/100</div>
+                <div style="color: #666; font-style: italic;">{tier_desc}</div>
             </div>
 
-            <p>Your complete evaluation report is attached as a PDF.</p>
+            <h3 style="color: #4a2c5a;">Executive Summary</h3>
+            <p>{summary}</p>
 
-            <p>A member of our team will reach out within 3-5 business days.</p>
+            <div style="text-align: center; margin: 25px 0;">
+                <a href="{app_url}/results/{proposal.submission_id}" style="display: inline-block; padding: 14px 28px; background: #4a2c5a; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">View Your Full Report</a>
+            </div>
 
-            <p>Best regards,<br><strong>The Write It Great Team</strong></p>
+            <p>Your complete evaluation report is also attached as a PDF for your records.</p>
+
+            <p>A member of our team will reach out within 3-5 business days to discuss your results and next steps.</p>
+
+            <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0;">
+
+            <p>Best regards,<br><strong>The Write It Great Team</strong><br><a href="https://www.writeitgreat.com" style="color: #4a2c5a;">www.writeitgreat.com</a></p>
         </div>
     </body>
     </html>
@@ -347,20 +570,53 @@ def send_team_notification(proposal):
         evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
 
         score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
+        summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'No summary')
 
         subject = f"[{proposal.tier or 'N/A'}-Tier] New Proposal: {proposal.book_title}"
 
+        # Build score breakdown
+        scores = evaluation.get('scores', {})
+        score_rows = ""
+        category_labels = {
+            'marketing': 'Marketing & Platform', 'overview': 'Overview & Concept',
+            'credentials': 'Author Credentials', 'comps': 'Comparative Titles',
+            'writing': 'Sample Writing', 'outline': 'Book Outline', 'completeness': 'Completeness'
+        }
+        for key, label in category_labels.items():
+            score_data = scores.get(key, {})
+            s = score_data.get('score', 0) if isinstance(score_data, dict) else score_data
+            score_rows += f"<tr><td>{label}</td><td style='text-align:center;font-weight:bold;'>{int(float(s or 0))}/100</td></tr>"
+
         html_content = f"""
         <html>
-        <body style="font-family: Arial, sans-serif;">
-            <h2 style="color: #4a2c5a;">New Book Proposal Submission</h2>
-            <p><strong>Author:</strong> {proposal.author_name}</p>
-            <p><strong>Email:</strong> {proposal.author_email}</p>
-            <p><strong>Book Title:</strong> {proposal.book_title}</p>
-            <p><strong>Tier:</strong> {proposal.tier or 'N/A'}</p>
-            <p><strong>Score:</strong> {score_display}/100</p>
-            <p><strong>Summary:</strong> {evaluation.get('summary', 'No summary')}</p>
-            <p><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}">View Full Proposal</a></p>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+            <div style="background: #1a1a1a; color: white; padding: 20px; text-align: center;">
+                <h1 style="margin: 0;">Write It Great</h1>
+                <p style="margin: 5px 0 0;">New Book Proposal Submission</p>
+            </div>
+            <div style="padding: 20px;">
+                <div style="text-align: center; margin: 20px 0;">
+                    <span style="display: inline-block; padding: 10px 20px; font-size: 24px; font-weight: bold; border-radius: 5px; color: white; background: {'#2e7d32' if proposal.tier == 'A' else '#1976d2' if proposal.tier == 'B' else '#f57c00' if proposal.tier == 'C' else '#d32f2f'};">
+                        TIER {proposal.tier or 'N/A'}
+                    </span>
+                    <span style="font-size: 36px; font-weight: bold; color: #c9a962; margin-left: 20px;">{score_display}/100</span>
+                </div>
+
+                <h2>Submission Details</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; width: 150px;">Author</td><td style="padding: 8px; border-bottom: 1px solid #eee;">{proposal.author_name}</td></tr>
+                    <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email</td><td style="padding: 8px; border-bottom: 1px solid #eee;"><a href="mailto:{proposal.author_email}">{proposal.author_email}</a></td></tr>
+                    <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Book Title</td><td style="padding: 8px; border-bottom: 1px solid #eee;">{proposal.book_title}</td></tr>
+                    <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Submission ID</td><td style="padding: 8px; border-bottom: 1px solid #eee;">{proposal.submission_id}</td></tr>
+                </table>
+
+                <h2>Executive Summary</h2>
+                <p>{summary}</p>
+
+                {'<h2>Score Breakdown</h2><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background: #1a1a1a; color: white;"><th style="padding: 10px; text-align: left;">Category</th><th style="padding: 10px; text-align: center;">Score</th></tr>' + score_rows + '</table>' if score_rows else ''}
+
+                <p style="margin-top: 20px;"><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #4a2c5a; color: white; text-decoration: none; border-radius: 5px;">View Full Proposal</a></p>
+            </div>
         </body>
         </html>
         """
@@ -374,6 +630,7 @@ def send_team_notification(proposal):
         return success
     except Exception as e:
         print(f"Team notification error: {e}")
+        traceback.print_exc()
         return False
 
 
@@ -381,7 +638,7 @@ def send_team_notification(proposal):
 # BACKGROUND PROCESSING
 # ============================================================================
 
-def process_evaluation_background(app_obj, submission_id, proposal_text, proposal_type):
+def process_evaluation_background(app_obj, submission_id, proposal_text, proposal_type, author_name='', book_title=''):
     """Run OpenAI evaluation and email notifications in a background thread"""
     with app_obj.app_context():
         try:
@@ -390,7 +647,7 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 print(f"Background eval: proposal {submission_id} not found")
                 return
 
-            evaluation = evaluate_proposal(proposal_text, proposal_type)
+            evaluation = evaluate_proposal(proposal_text, proposal_type, author_name, book_title)
             if not evaluation:
                 proposal.status = 'error'
                 db.session.commit()
@@ -398,7 +655,7 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 return
 
             proposal.tier = evaluation.get('tier', 'C')
-            proposal.overall_score = evaluation.get('overall_score', 50)
+            proposal.overall_score = evaluation.get('total_score', evaluation.get('overall_score', 50))
             proposal.evaluation_json = json.dumps(evaluation)
             proposal.status = 'submitted'
             db.session.commit()
@@ -482,7 +739,7 @@ def api_evaluate():
         # Run evaluation in background thread to avoid Heroku 30s timeout
         thread = threading.Thread(
             target=process_evaluation_background,
-            args=(app, proposal.submission_id, proposal_text, proposal_type)
+            args=(app, proposal.submission_id, proposal_text, proposal_type, author_name, book_title)
         )
         thread.daemon = True
         thread.start()
