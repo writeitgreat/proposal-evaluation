@@ -354,6 +354,14 @@ SCORING GUIDELINES:
 - 50-59: Weak, major revisions required
 - Below 50: Not ready for submission
 
+ADVANCE ESTIMATE RULES (STRICT - you MUST follow these exactly):
+- A-Tier (score >= 85): viable=true, lowRange 0-25000, highRange max 25000
+- B-Tier (score 70-84): viable=true, lowRange 0-10000, highRange max 10000
+- C-Tier (score 50-69): viable=false, lowRange=0, highRange=0
+- D-Tier (score < 50): viable=false, lowRange=0, highRange=0
+- NEVER estimate an advance higher than $25,000
+- For C and D tier proposals, ALWAYS set viable=false and both ranges to 0
+
 Return ONLY the JSON object, no other text."""
 
     try:
@@ -385,12 +393,30 @@ Return ONLY the JSON object, no other text."""
         evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
         evaluation['proposal_type'] = proposal_type
 
+        # Enforce advance estimate caps based on tier (strict business rules)
+        tier = evaluation['tier']
+        adv = evaluation.get('advanceEstimate', {})
+        if tier in ('C', 'D'):
+            adv['viable'] = False
+            adv['lowRange'] = 0
+            adv['highRange'] = 0
+            if not adv.get('reasoning'):
+                adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
+        elif tier == 'B':
+            adv['viable'] = True
+            adv['lowRange'] = min(int(adv.get('lowRange', 0) or 0), 10000)
+            adv['highRange'] = min(int(adv.get('highRange', 0) or 0), 10000)
+        elif tier == 'A':
+            adv['viable'] = True
+            adv['lowRange'] = min(int(adv.get('lowRange', 0) or 0), 25000)
+            adv['highRange'] = min(int(adv.get('highRange', 0) or 0), 25000)
+        evaluation['advanceEstimate'] = adv
+
         # Backward-compat aliases so old templates/emails still work
         evaluation['overall_score'] = evaluation['total_score']
         evaluation['summary'] = evaluation.get('executiveSummary', '')
         evaluation['red_flags'] = evaluation.get('redFlags', [])
         evaluation['next_steps'] = evaluation.get('recommendedNextSteps', [])
-        adv = evaluation.get('advanceEstimate', {})
         evaluation['advance_estimate'] = {
             'low': adv.get('lowRange', 0),
             'high': adv.get('highRange', 0),
