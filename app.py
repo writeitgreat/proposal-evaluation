@@ -203,11 +203,11 @@ def calculate_weighted_score(scores, proposal_type):
 
 
 def determine_tier(score):
-    if score >= 85:
+    if score >= 90:
         return 'A'
-    elif score >= 70:
+    elif score >= 80:
         return 'B'
-    elif score >= 50:
+    elif score >= 70:
         return 'C'
     return 'D'
 
@@ -346,19 +346,19 @@ Provide your evaluation as a JSON object with this EXACT structure:
     "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"]
 }}
 
-SCORING GUIDELINES:
-- 90-100: Exceptional, ready for top-tier publishers
-- 80-89: Strong, minor improvements needed
-- 70-79: Good foundation, some gaps to address
-- 60-69: Promising but needs significant work
-- 50-59: Weak, major revisions required
-- Below 50: Not ready for submission
+SCORING GUIDELINES (use standard American grading scale):
+- A-Tier (90-100): Exceptional, publisher-ready proposal with strong platform
+- B-Tier (80-89): Strong foundation, minor improvements needed to be publisher-ready
+- C-Tier (70-79): Developing, shows promise but needs significant strengthening
+- D-Tier (Below 70): Early stage, needs substantial work before submission
+
+IMPORTANT: Your scores MUST align with the tier. If a proposal deserves a B, score it 80-89. If it deserves a C, score it 70-79. Do NOT give a score of 74 and call it B-tier - that would be C-tier.
 
 ADVANCE ESTIMATE RULES (STRICT - you MUST follow these exactly):
-- A-Tier (score >= 85): viable=true, lowRange 0-25000, highRange max 25000
-- B-Tier (score 70-84): viable=true, lowRange 0-10000, highRange max 10000
-- C-Tier (score 50-69): viable=false, lowRange=0, highRange=0
-- D-Tier (score < 50): viable=false, lowRange=0, highRange=0
+- A-Tier (score >= 90): viable=true, lowRange 0-25000, highRange max 25000
+- B-Tier (score 80-89): viable=true, lowRange 0-10000, highRange max 10000
+- C-Tier (score 70-79): viable=false, lowRange=0, highRange=0
+- D-Tier (score < 70): viable=false, lowRange=0, highRange=0
 - NEVER estimate an advance higher than $25,000
 - For C and D tier proposals, ALWAYS set viable=false and both ranges to 0
 
