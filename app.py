@@ -203,11 +203,11 @@ def calculate_weighted_score(scores, proposal_type):
 
 
 def determine_tier(score):
-    if score >= 85:
+    if score >= 90:
         return 'A'
-    elif score >= 70:
+    elif score >= 80:
         return 'B'
-    elif score >= 50:
+    elif score >= 70:
         return 'C'
     return 'D'
 
@@ -346,13 +346,21 @@ Provide your evaluation as a JSON object with this EXACT structure:
     "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"]
 }}
 
-SCORING GUIDELINES:
-- 90-100: Exceptional, ready for top-tier publishers
-- 80-89: Strong, minor improvements needed
-- 70-79: Good foundation, some gaps to address
-- 60-69: Promising but needs significant work
-- 50-59: Weak, major revisions required
-- Below 50: Not ready for submission
+SCORING GUIDELINES (use standard American grading scale):
+- A-Tier (90-100): Exceptional, publisher-ready proposal with strong platform
+- B-Tier (80-89): Strong foundation, minor improvements needed to be publisher-ready
+- C-Tier (70-79): Developing, shows promise but needs significant strengthening
+- D-Tier (Below 70): Early stage, needs substantial work before submission
+
+IMPORTANT: Your scores MUST align with the tier. If a proposal deserves a B, score it 80-89. If it deserves a C, score it 70-79. Do NOT give a score of 74 and call it B-tier - that would be C-tier.
+
+ADVANCE ESTIMATE RULES (STRICT - you MUST follow these exactly):
+- A-Tier (score >= 90): viable=true, lowRange 0-25000, highRange max 25000
+- B-Tier (score 80-89): viable=true, lowRange 0-10000, highRange max 10000
+- C-Tier (score 70-79): viable=false, lowRange=0, highRange=0
+- D-Tier (score < 70): viable=false, lowRange=0, highRange=0
+- NEVER estimate an advance higher than $25,000
+- For C and D tier proposals, ALWAYS set viable=false and both ranges to 0
 
 Return ONLY the JSON object, no other text."""
 
@@ -385,12 +393,30 @@ Return ONLY the JSON object, no other text."""
         evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
         evaluation['proposal_type'] = proposal_type
 
+        # Enforce advance estimate caps based on tier (strict business rules)
+        tier = evaluation['tier']
+        adv = evaluation.get('advanceEstimate', {})
+        if tier in ('C', 'D'):
+            adv['viable'] = False
+            adv['lowRange'] = 0
+            adv['highRange'] = 0
+            if not adv.get('reasoning'):
+                adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
+        elif tier == 'B':
+            adv['viable'] = True
+            adv['lowRange'] = min(int(adv.get('lowRange', 0) or 0), 10000)
+            adv['highRange'] = min(int(adv.get('highRange', 0) or 0), 10000)
+        elif tier == 'A':
+            adv['viable'] = True
+            adv['lowRange'] = min(int(adv.get('lowRange', 0) or 0), 25000)
+            adv['highRange'] = min(int(adv.get('highRange', 0) or 0), 25000)
+        evaluation['advanceEstimate'] = adv
+
         # Backward-compat aliases so old templates/emails still work
         evaluation['overall_score'] = evaluation['total_score']
         evaluation['summary'] = evaluation.get('executiveSummary', '')
         evaluation['red_flags'] = evaluation.get('redFlags', [])
         evaluation['next_steps'] = evaluation.get('recommendedNextSteps', [])
-        adv = evaluation.get('advanceEstimate', {})
         evaluation['advance_estimate'] = {
             'low': adv.get('lowRange', 0),
             'high': adv.get('highRange', 0),
@@ -516,7 +542,7 @@ def send_author_notification(proposal):
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="color: #4a2c5a; margin-bottom: 5px;">Write It Great</h1>
+                <h1 style="color: #c9a962; margin-bottom: 5px;">Write It Great</h1>
                 <p style="color: #666; font-style: italic;">Elite Ghostwriting &amp; Publishing Services</p>
             </div>
 
@@ -526,15 +552,15 @@ def send_author_notification(proposal):
 
             <div style="background: #f8f6f9; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
                 <div style="font-size: 48px; font-weight: bold; color: {'#2e7d32' if proposal.tier == 'A' else '#1976d2' if proposal.tier == 'B' else '#f57c00' if proposal.tier == 'C' else '#d32f2f'};">{proposal.tier or 'N/A'}-Tier</div>
-                <div style="font-size: 24px; color: #4a2c5a; margin: 10px 0;">{score_display}/100</div>
+                <div style="font-size: 24px; color: #1a1a1a; margin: 10px 0;">{score_display}/100</div>
                 <div style="color: #666; font-style: italic;">{tier_desc}</div>
             </div>
 
-            <h3 style="color: #4a2c5a;">Executive Summary</h3>
+            <h3 style="color: #1a1a1a;">Executive Summary</h3>
             <p>{summary}</p>
 
             <div style="text-align: center; margin: 25px 0;">
-                <a href="{app_url}/results/{proposal.submission_id}" style="display: inline-block; padding: 14px 28px; background: #4a2c5a; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">View Your Full Report</a>
+                <a href="{app_url}/results/{proposal.submission_id}" style="display: inline-block; padding: 14px 28px; background: #c9a962; color: #1a1a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">View Your Full Report</a>
             </div>
 
             <p>Your complete evaluation report is also attached as a PDF for your records.</p>
@@ -543,7 +569,7 @@ def send_author_notification(proposal):
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0;">
 
-            <p>Best regards,<br><strong>The Write It Great Team</strong><br><a href="https://www.writeitgreat.com" style="color: #4a2c5a;">www.writeitgreat.com</a></p>
+            <p>Best regards,<br><strong>The Write It Great Team</strong><br><a href="https://www.writeitgreat.com" style="color: #1a1a1a;">www.writeitgreat.com</a></p>
         </div>
     </body>
     </html>
@@ -615,7 +641,7 @@ def send_team_notification(proposal):
 
                 {'<h2>Score Breakdown</h2><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background: #1a1a1a; color: white;"><th style="padding: 10px; text-align: left;">Category</th><th style="padding: 10px; text-align: center;">Score</th></tr>' + score_rows + '</table>' if score_rows else ''}
 
-                <p style="margin-top: 20px;"><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #4a2c5a; color: white; text-decoration: none; border-radius: 5px;">View Full Proposal</a></p>
+                <p style="margin-top: 20px;"><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #c9a962; color: #1a1a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Full Proposal</a></p>
             </div>
         </body>
         </html>
