@@ -28,61 +28,125 @@
                 <p style="color: var(--gray-600); margin-top: 1rem;">The AI evaluation encountered an error. The author can resubmit their proposal.</p>
             </div>
             {% else %}
+
+            {# Set up variables for both old and new data formats #}
+            {% set total_score = evaluation.get('total_score', evaluation.get('overall_score', proposal.overall_score or 0)) %}
+            {% set exec_summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'No summary available.') %}
+            {% set tier_desc = evaluation.get('tierDescription', '') %}
+            {% set scores = evaluation.get('scores', {}) %}
+            {% set detailed = evaluation.get('detailedAnalysis', {}) %}
+            {% set old_categories = evaluation.get('categories', {}) %}
+            {% set red_flags = evaluation.get('redFlags', []) or evaluation.get('red_flags', []) %}
+            {% set strengths = evaluation.get('strengths', []) %}
+            {% set improvements = evaluation.get('improvements', []) %}
+            {% set priority_plan = evaluation.get('priorityActionPlan', []) %}
+            {% set adv_est = evaluation.get('advanceEstimate', {}) %}
+            {% set adv_old = evaluation.get('advance_estimate', {}) %}
+            {% set next_steps = evaluation.get('recommendedNextSteps', []) or evaluation.get('next_steps', []) %}
+
             <div class="detail-section">
                 <h3>Evaluation Summary</h3>
                 <p><strong>Overall Score:</strong> {% if proposal.overall_score is not none %}{{ proposal.overall_score|round|int }}/100{% else %}N/A{% endif %}</p>
-                <p style="margin-top: 1rem;">{{ evaluation.get('summary', 'No summary available.') }}</p>
-                {% if evaluation.get('advance_estimate') %}
-                {% set advance = evaluation.get('advance_estimate', {}) %}
+                {% if tier_desc %}<p style="color: var(--gray-500); font-size: 0.875rem;">{{ tier_desc }}</p>{% endif %}
+                <p style="margin-top: 1rem;">{{ exec_summary }}</p>
+
+                {% if adv_est and adv_est.get('reasoning') %}
                 <div style="margin-top: 1rem; padding: 1rem; background: var(--gold-light); border-radius: var(--radius);">
-                    <strong>Advance Estimate:</strong> ${{ "{:,.0f}".format(advance.get('low', 0)|float) }} - ${{ "{:,.0f}".format(advance.get('high', 0)|float) }}
-                    <p style="font-size: 0.875rem; margin-top: 0.5rem;">{{ advance.get('notes', '') }}</p>
+                    <strong>Advance Estimate:</strong>
+                    {% if adv_est.get('viable', true) %}
+                    ${{ "{:,.0f}".format(adv_est.get('lowRange', 0)|float) }} - ${{ "{:,.0f}".format(adv_est.get('highRange', 0)|float) }}
+                    ({{ adv_est.get('confidence', 'N/A') }} confidence)
+                    {% else %}
+                    Not yet viable for traditional advance
+                    {% endif %}
+                    <p style="font-size: 0.875rem; margin-top: 0.5rem;">{{ adv_est.get('reasoning', '') }}</p>
+                </div>
+                {% elif adv_old and (adv_old.get('low') or adv_old.get('high')) %}
+                <div style="margin-top: 1rem; padding: 1rem; background: var(--gold-light); border-radius: var(--radius);">
+                    <strong>Advance Estimate:</strong> ${{ "{:,.0f}".format(adv_old.get('low', 0)|float) }} - ${{ "{:,.0f}".format(adv_old.get('high', 0)|float) }}
+                    <p style="font-size: 0.875rem; margin-top: 0.5rem;">{{ adv_old.get('notes', '') }}</p>
                 </div>
                 {% endif %}
             </div>
 
+            {% if red_flags and red_flags|length > 0 %}
+            <div class="detail-section" style="border-left: 4px solid var(--error);">
+                <h3 style="color: var(--error);">Red Flags</h3>
+                <ul>{% for flag in red_flags %}<li>{{ flag|replace('_', ' ')|title }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+
             <div class="detail-section">
-                <h3>Category Scores</h3>
-                {% for key, cat in evaluation.get('categories', {}).items() %}
+                <h3>Score Breakdown</h3>
+                {% if scores %}
+                {% set category_labels = [
+                    ('marketing', 'Marketing & Platform'),
+                    ('overview', 'Overview & Concept'),
+                    ('credentials', 'Author Credentials'),
+                    ('comps', 'Comparative Titles'),
+                    ('writing', 'Sample Writing'),
+                    ('outline', 'Book Outline'),
+                    ('completeness', 'Completeness')
+                ] %}
+                {% for key, label in category_labels %}
+                {% set score_data = scores.get(key, {}) %}
+                {% set score = score_data.get('score', 0) if score_data is mapping else (score_data or 0) %}
+                <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--gray-200);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <strong>{{ label }}</strong>
+                        <span class="{% if score|float >= 70 %}score-high{% elif score|float >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|int }}/100</span>
+                    </div>
+                    <div style="height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden;">
+                        <div style="height: 100%; width: {{ score|int }}%; background: var(--primary); border-radius: 3px;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% elif old_categories %}
+                {% for key, cat in old_categories.items() %}
                 {% set score = cat.get('score', 0)|float %}
-                <div style="padding: 1rem 0; border-bottom: 1px solid var(--gray-200);">
+                <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--gray-200);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                         <strong>{{ key|replace('_', ' ')|title }}</strong>
                         <span class="{% if score >= 70 %}score-high{% elif score >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|round|int }}/100</span>
                     </div>
                     <p style="font-size: 0.875rem; color: var(--gray-600);">{{ cat.get('feedback', 'No feedback available.') }}</p>
-                    {% if cat.get('priority_actions') %}
-                    <div style="margin-top: 0.5rem;">
-                        <strong style="font-size: 0.75rem; color: var(--gray-500);">PRIORITY ACTIONS:</strong>
-                        <ul style="margin: 0.25rem 0 0; padding-left: 1.25rem; font-size: 0.8125rem;">
-                            {% for action in cat.get('priority_actions', []) %}
-                            <li>{{ action }}</li>
-                            {% endfor %}
-                        </ul>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+
+            {% if strengths %}
+            <div class="detail-section">
+                <h3>Top Strengths</h3>
+                <ul>{% for item in strengths %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+
+            {% if improvements %}
+            <div class="detail-section">
+                <h3>Key Improvements Needed</h3>
+                <ul>{% for item in improvements %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+
+            {% if priority_plan and priority_plan|length > 0 %}
+            <div class="detail-section">
+                <h3>Priority Action Plan</h3>
+                {% for action in priority_plan %}
+                <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: var(--gray-100); border-left: 3px solid var(--primary); border-radius: 0 var(--radius) var(--radius) 0;">
+                    <strong style="color: var(--primary);">#{{ action.get('priority', loop.index) }}: {{ action.get('action', '') }}</strong>
+                    <div style="font-size: 0.8125rem; color: var(--gray-500); margin-top: 0.25rem;">
+                        {{ action.get('timeline', '') }}{% if action.get('impact') %} &mdash; {{ action.impact }}{% endif %}
                     </div>
-                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
-
-            {% if evaluation.get('strengths') %}
-            <div class="detail-section">
-                <h3>Strengths</h3>
-                <ul>{% for item in evaluation.get('strengths', []) %}<li>{{ item }}</li>{% endfor %}</ul>
-            </div>
             {% endif %}
 
-            {% if evaluation.get('red_flags') %}
+            {% if next_steps %}
             <div class="detail-section">
-                <h3>Red Flags</h3>
-                <ul>{% for item in evaluation.get('red_flags', []) %}<li>{{ item }}</li>{% endfor %}</ul>
-            </div>
-            {% endif %}
-
-            {% if evaluation.get('next_steps') %}
-            <div class="detail-section">
-                <h3>Next Steps</h3>
-                <ol>{% for item in evaluation.get('next_steps', []) %}<li>{{ item }}</li>{% endfor %}</ol>
+                <h3>Recommended Next Steps</h3>
+                <ol>{% for item in next_steps %}<li>{{ item }}</li>{% endfor %}</ol>
             </div>
             {% endif %}
             {% endif %}
