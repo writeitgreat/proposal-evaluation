@@ -6,12 +6,12 @@
     <style>
         @page { size: letter; margin: 0.75in; }
         body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #333; }
-        .header { text-align: center; border-bottom: 3px solid #4a2c5a; padding-bottom: 15px; margin-bottom: 25px; }
-        .logo { font-size: 22pt; font-weight: bold; color: #4a2c5a; }
+        .header { text-align: center; border-bottom: 3px solid #1a1a1a; padding-bottom: 15px; margin-bottom: 25px; }
+        .logo { font-size: 22pt; font-weight: bold; color: #c9a962; }
         .tagline { font-size: 9pt; color: #666; margin-top: 3px; }
-        h1 { font-size: 16pt; color: #4a2c5a; margin: 15px 0 10px; }
-        h2 { font-size: 13pt; color: #4a2c5a; margin: 20px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-        h3 { font-size: 11pt; color: #4a2c5a; margin: 12px 0 6px; }
+        h1 { font-size: 16pt; color: #1a1a1a; margin: 15px 0 10px; }
+        h2 { font-size: 13pt; color: #1a1a1a; margin: 20px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        h3 { font-size: 11pt; color: #1a1a1a; margin: 12px 0 6px; }
 
         .meta-info { background: #f5f5f5; padding: 12px; margin-bottom: 15px; }
         .meta-info table { width: 100%; }
@@ -30,14 +30,14 @@
         .tier-d .tier-letter { color: #dc2626; }
         .tier-desc { font-size: 9pt; color: #666; margin-top: 5px; }
 
-        .summary { background: #f8f6f9; padding: 12px; border-left: 4px solid #4a2c5a; margin: 15px 0; font-style: italic; font-size: 10pt; }
+        .summary { background: #f5f5f5; padding: 12px; border-left: 4px solid #1a1a1a; margin: 15px 0; font-style: italic; font-size: 10pt; }
 
         .advance-box { background: #fef3c7; border: 2px solid #c9a962; padding: 12px; text-align: center; margin: 15px 0; }
-        .advance-range { font-size: 16pt; font-weight: bold; color: #4a2c5a; }
+        .advance-range { font-size: 16pt; font-weight: bold; color: #1a1a1a; }
         .advance-note { font-size: 9pt; color: #666; margin-top: 5px; }
 
         .score-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-        .score-table th { background: #4a2c5a; color: white; padding: 8px; text-align: left; font-size: 9.5pt; }
+        .score-table th { background: #1a1a1a; color: white; padding: 8px; text-align: left; font-size: 9.5pt; }
         .score-table td { padding: 8px; border-bottom: 1px solid #ddd; font-size: 9.5pt; vertical-align: top; }
         .score-table tr:nth-child(even) { background: #f9f9f9; }
         .score-cell { text-align: center; font-weight: bold; font-size: 12pt; width: 70px; }
@@ -49,16 +49,16 @@
         .strengths-section { background: #dcfce7; border-left: 4px solid #22c55e; }
         .improvements-section { background: #fef3c7; border-left: 4px solid #f59e0b; }
         .concerns-section { background: #fee2e2; border-left: 4px solid #ef4444; }
-        .next-steps-section { background: #f3e8ff; border-left: 4px solid #4a2c5a; }
+        .next-steps-section { background: #f5f5f5; border-left: 4px solid #1a1a1a; }
         .list-section ul, .list-section ol { margin: 8px 0; padding-left: 20px; }
         .list-section li { margin-bottom: 5px; font-size: 9.5pt; }
 
-        .category-detail { margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-left: 4px solid #4a2c5a; }
-        .category-detail-name { font-size: 11pt; font-weight: bold; color: #4a2c5a; }
+        .category-detail { margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-left: 4px solid #1a1a1a; }
+        .category-detail-name { font-size: 11pt; font-weight: bold; color: #1a1a1a; }
         .category-detail-score { font-size: 12pt; font-weight: bold; float: right; }
         .category-detail p { margin: 6px 0; font-size: 9.5pt; }
         .category-subsection { margin-top: 8px; padding: 8px; background: #fff; }
-        .category-subsection strong { font-size: 8.5pt; color: #5B4B8A; text-transform: uppercase; letter-spacing: 0.3px; }
+        .category-subsection strong { font-size: 8.5pt; color: #1a1a1a; text-transform: uppercase; letter-spacing: 0.3px; }
         .category-subsection p { margin: 4px 0; font-size: 9pt; }
         .category-subsection ul { margin: 4px 0 0; padding-left: 18px; }
         .category-subsection li { font-size: 9pt; margin-bottom: 3px; }
@@ -67,8 +67,8 @@
         .excellence-note strong { color: #16a34a; font-size: 8.5pt; }
         .excellence-note p { font-style: italic; font-size: 9pt; color: #166534; margin: 3px 0 0; }
 
-        .priority-item { margin-bottom: 10px; padding: 10px; background: #fff; border-left: 4px solid #4a2c5a; }
-        .priority-item strong { color: #4a2c5a; }
+        .priority-item { margin-bottom: 10px; padding: 10px; background: #fff; border-left: 4px solid #1a1a1a; }
+        .priority-item strong { color: #1a1a1a; }
         .priority-meta { font-size: 8.5pt; color: #666; margin-top: 3px; }
 
         .path-box { background: #f0fdf4; border: 1px solid #22c55e; padding: 12px; margin: 15px 0; }
@@ -77,10 +77,10 @@
 
         .page-break { page-break-before: always; }
 
-        .footer { margin-top: 30px; padding-top: 15px; border-top: 2px solid #4a2c5a; text-align: center; font-size: 8pt; color: #666; }
+        .footer { margin-top: 30px; padding-top: 15px; border-top: 2px solid #1a1a1a; text-align: center; font-size: 8pt; color: #666; }
 
-        .cta-box { background: #f8f6f9; border: 2px solid #4a2c5a; padding: 15px; text-align: center; margin: 20px 0; }
-        .cta-box h3 { color: #4a2c5a; margin-top: 0; }
+        .cta-box { background: #f5f5f5; border: 2px solid #1a1a1a; padding: 15px; text-align: center; margin: 20px 0; }
+        .cta-box h3 { color: #1a1a1a; margin-top: 0; }
         .cta-box p { font-size: 9.5pt; }
     </style>
 </head>
@@ -138,7 +138,7 @@
         <div class="advance-range">${{ "{:,.0f}".format(adv_est.get('lowRange', 0)|float) }} - ${{ "{:,.0f}".format(adv_est.get('highRange', 0)|float) }}</div>
         <div class="advance-note"><strong>Confidence:</strong> {{ adv_est.get('confidence', 'N/A') }}</div>
         {% else %}
-        <div style="font-size: 11pt; font-weight: bold; color: #4a2c5a;">Not yet viable for traditional publishing advance</div>
+        <div style="font-size: 11pt; font-weight: bold; color: #1a1a1a;">Not yet viable for traditional publishing advance</div>
         {% endif %}
         <div class="advance-note">{{ adv_est.get('reasoning', '') }}</div>
     </div>
@@ -180,7 +180,7 @@
         {% endfor %}
         <tr style="background: #f0f0f0; font-weight: bold;">
             <td><strong>TOTAL (Weighted)</strong></td>
-            <td class="score-cell" style="color: #4a2c5a;">{{ total_score|round|int }}</td>
+            <td class="score-cell" style="color: #1a1a1a;">{{ total_score|round|int }}</td>
             <td style="text-align:center;">100%</td>
         </tr>
         </tbody>
