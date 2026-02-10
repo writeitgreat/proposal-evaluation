@@ -542,7 +542,7 @@ def send_author_notification(proposal):
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="color: #c9a962; margin-bottom: 5px;">Write It Great</h1>
+                <h1 style="color: #2D1B69; margin-bottom: 5px;">Write It Great</h1>
                 <p style="color: #666; font-style: italic;">Elite Ghostwriting &amp; Publishing Services</p>
             </div>
 
@@ -552,15 +552,15 @@ def send_author_notification(proposal):
 
             <div style="background: #f8f6f9; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
                 <div style="font-size: 48px; font-weight: bold; color: {'#2e7d32' if proposal.tier == 'A' else '#1976d2' if proposal.tier == 'B' else '#f57c00' if proposal.tier == 'C' else '#d32f2f'};">{proposal.tier or 'N/A'}-Tier</div>
-                <div style="font-size: 24px; color: #1a1a1a; margin: 10px 0;">{score_display}/100</div>
+                <div style="font-size: 24px; color: #2D1B69; margin: 10px 0;">{score_display}/100</div>
                 <div style="color: #666; font-style: italic;">{tier_desc}</div>
             </div>
 
-            <h3 style="color: #1a1a1a;">Executive Summary</h3>
+            <h3 style="color: #2D1B69;">Executive Summary</h3>
             <p>{summary}</p>
 
             <div style="text-align: center; margin: 25px 0;">
-                <a href="{app_url}/results/{proposal.submission_id}" style="display: inline-block; padding: 14px 28px; background: #c9a962; color: #1a1a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">View Your Full Report</a>
+                <a href="{app_url}/results/{proposal.submission_id}" style="display: inline-block; padding: 14px 28px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">View Your Full Report</a>
             </div>
 
             <p>Your complete evaluation report is also attached as a PDF for your records.</p>
@@ -569,7 +569,7 @@ def send_author_notification(proposal):
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0;">
 
-            <p>Best regards,<br><strong>The Write It Great Team</strong><br><a href="https://www.writeitgreat.com" style="color: #1a1a1a;">www.writeitgreat.com</a></p>
+            <p>Best regards,<br><strong>The Write It Great Team</strong><br><a href="https://www.writeitgreat.com" style="color: #2D1B69;">www.writeitgreat.com</a></p>
         </div>
     </body>
     </html>
@@ -616,7 +616,7 @@ def send_team_notification(proposal):
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6;">
-            <div style="background: #1a1a1a; color: white; padding: 20px; text-align: center;">
+            <div style="background: #2D1B69; color: white; padding: 20px; text-align: center;">
                 <h1 style="margin: 0;">Write It Great</h1>
                 <p style="margin: 5px 0 0;">New Book Proposal Submission</p>
             </div>
@@ -625,7 +625,7 @@ def send_team_notification(proposal):
                     <span style="display: inline-block; padding: 10px 20px; font-size: 24px; font-weight: bold; border-radius: 5px; color: white; background: {'#2e7d32' if proposal.tier == 'A' else '#1976d2' if proposal.tier == 'B' else '#f57c00' if proposal.tier == 'C' else '#d32f2f'};">
                         TIER {proposal.tier or 'N/A'}
                     </span>
-                    <span style="font-size: 36px; font-weight: bold; color: #c9a962; margin-left: 20px;">{score_display}/100</span>
+                    <span style="font-size: 36px; font-weight: bold; color: #2D1B69; margin-left: 20px;">{score_display}/100</span>
                 </div>
 
                 <h2>Submission Details</h2>
@@ -639,9 +639,9 @@ def send_team_notification(proposal):
                 <h2>Executive Summary</h2>
                 <p>{summary}</p>
 
-                {'<h2>Score Breakdown</h2><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background: #1a1a1a; color: white;"><th style="padding: 10px; text-align: left;">Category</th><th style="padding: 10px; text-align: center;">Score</th></tr>' + score_rows + '</table>' if score_rows else ''}
+                {'<h2>Score Breakdown</h2><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background: #2D1B69; color: white;"><th style="padding: 10px; text-align: left;">Category</th><th style="padding: 10px; text-align: center;">Score</th></tr>' + score_rows + '</table>' if score_rows else ''}
 
-                <p style="margin-top: 20px;"><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #c9a962; color: #1a1a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Full Proposal</a></p>
+                <p style="margin-top: 20px;"><a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Full Proposal</a></p>
             </div>
         </body>
         </html>
