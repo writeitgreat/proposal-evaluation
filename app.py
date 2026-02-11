@@ -21,6 +21,9 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from xhtml2pdf import pisa
+import pyotp
+import qrcode
+import base64
 import openai
 from docx import Document
 import PyPDF2
@@ -84,11 +87,33 @@ class AdminUser(UserMixin, db.Model):
     password_reset_token = db.Column(db.String(100))
     password_reset_expires = db.Column(db.DateTime)
 
+    # TOTP 2FA
+    totp_secret = db.Column(db.String(32))
+    totp_enabled = db.Column(db.Boolean, default=False)
+
+    # Login security
+    failed_login_attempts = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime)
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def is_locked(self):
+        if self.locked_until and datetime.utcnow() < self.locked_until:
+            return True
+        return False
+
+    def record_failed_login(self):
+        self.failed_login_attempts = (self.failed_login_attempts or 0) + 1
+        if self.failed_login_attempts >= 5:
+            self.locked_until = datetime.utcnow() + timedelta(minutes=15)
+
+    def record_successful_login(self):
+        self.failed_login_attempts = 0
+        self.locked_until = None
 
     def generate_reset_token(self):
         self.password_reset_token = uuid.uuid4().hex
@@ -103,6 +128,20 @@ class AdminUser(UserMixin, db.Model):
         if datetime.utcnow() > self.password_reset_expires:
             return False
         return True
+
+    def setup_totp(self):
+        self.totp_secret = pyotp.random_base32()
+        return self.totp_secret
+
+    def get_totp_uri(self):
+        return pyotp.totp.TOTP(self.totp_secret).provisioning_uri(
+            name=self.email, issuer_name='Write It Great')
+
+    def verify_totp(self, code):
+        if not self.totp_secret:
+            return False
+        totp = pyotp.TOTP(self.totp_secret)
+        return totp.verify(code, valid_window=1)
 
 
 class Proposal(db.Model):
@@ -860,21 +899,44 @@ def download_pdf(submission_id):
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    """Admin login page"""
+    """Team login with 2FA support and lockout protection"""
     if current_user.is_authenticated:
         return redirect(url_for('admin_dashboard'))
-    
+
     if request.method == 'POST':
-        email = request.form.get('email', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
-        
+
         user = AdminUser.query.filter_by(email=email).first()
+
+        if user and user.is_locked():
+            remaining = int((user.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
+            flash(f'Account locked due to too many failed attempts. Try again in {remaining} minutes.', 'error')
+            return render_template('admin_login.html')
+
         if user and user.check_password(password):
+            user.record_successful_login()
+            db.session.commit()
+
+            # If 2FA is enabled, redirect to verification
+            if user.totp_enabled:
+                session['pending_2fa_user_id'] = user.id
+                return redirect(url_for('admin_verify_2fa'))
+
+            # If 2FA not set up yet, require setup
+            if not user.totp_secret:
+                session['setup_2fa_user_id'] = user.id
+                return redirect(url_for('admin_setup_2fa'))
+
             login_user(user)
             return redirect(url_for('admin_dashboard'))
-        
-        flash('Invalid email or password', 'error')
-    
+
+        if user:
+            user.record_failed_login()
+            db.session.commit()
+
+        flash('Invalid email or password.', 'error')
+
     return render_template('admin_login.html')
 
 
@@ -1022,9 +1084,18 @@ def resend_author_email(submission_id):
 ALLOWED_EMAIL_DOMAIN = 'writeitgreat.com'
 
 
+def is_valid_team_email(email):
+    """Strictly validate that email is a @writeitgreat.com address"""
+    import re
+    email = (email or '').strip().lower()
+    # Must match: localpart@writeitgreat.com (exactly)
+    pattern = r'^[a-zA-Z0-9._%+-]+@writeitgreat\.com$'
+    return bool(re.match(pattern, email))
+
+
 @app.route('/admin/register', methods=['GET', 'POST'])
 def admin_register():
-    """Team registration - restricted to @writeitgreat.com emails"""
+    """Team registration - strictly restricted to @writeitgreat.com emails"""
     if current_user.is_authenticated:
         return redirect(url_for('admin_dashboard'))
 
@@ -1036,22 +1107,32 @@ def admin_register():
 
         if not all([email, name, password, confirm]):
             flash('All fields are required.', 'error')
-        elif not email.endswith(f'@{ALLOWED_EMAIL_DOMAIN}'):
+            return render_template('admin_register.html')
+
+        if not is_valid_team_email(email):
             flash(f'Only @{ALLOWED_EMAIL_DOMAIN} email addresses can register.', 'error')
-        elif len(password) < 8:
+            return render_template('admin_register.html')
+
+        if len(password) < 8:
             flash('Password must be at least 8 characters.', 'error')
-        elif password != confirm:
+            return render_template('admin_register.html')
+
+        if password != confirm:
             flash('Passwords do not match.', 'error')
-        elif AdminUser.query.filter_by(email=email).first():
+            return render_template('admin_register.html')
+
+        if AdminUser.query.filter_by(email=email).first():
             flash('An account with this email already exists. Try logging in or resetting your password.', 'error')
-        else:
-            user = AdminUser(email=email, name=name, password_hash='temp')
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
-            login_user(user)
-            flash(f'Welcome, {name}! Your account has been created.', 'success')
-            return redirect(url_for('admin_dashboard'))
+            return render_template('admin_register.html')
+
+        user = AdminUser(email=email, name=name, password_hash='temp')
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        # Don't auto-login — redirect to 2FA setup
+        session['setup_2fa_user_id'] = user.id
+        return redirect(url_for('admin_setup_2fa'))
 
     return render_template('admin_register.html')
 
@@ -1132,6 +1213,82 @@ def admin_reset_password(token):
     return render_template('admin_reset_password.html', token=token)
 
 
+@app.route('/admin/setup-2fa', methods=['GET', 'POST'])
+def admin_setup_2fa():
+    """Set up TOTP 2FA after registration or first login"""
+    user_id = session.get('setup_2fa_user_id')
+    if not user_id:
+        return redirect(url_for('admin_login'))
+
+    user = AdminUser.query.get(user_id)
+    if not user:
+        session.pop('setup_2fa_user_id', None)
+        return redirect(url_for('admin_login'))
+
+    # Generate TOTP secret if not already set
+    if not user.totp_secret:
+        user.setup_totp()
+        db.session.commit()
+
+    if request.method == 'POST':
+        code = request.form.get('totp_code', '').strip()
+        if user.verify_totp(code):
+            user.totp_enabled = True
+            db.session.commit()
+            session.pop('setup_2fa_user_id', None)
+            login_user(user)
+            flash(f'Welcome, {user.name}! Two-factor authentication is now active.', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid code. Please try again with a new code from your authenticator app.', 'error')
+
+    # Generate QR code as base64 image
+    totp_uri = user.get_totp_uri()
+    qr = qrcode.QRCode(version=1, box_size=6, border=4)
+    qr.add_data(totp_uri)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color='#2D1B69', back_color='white')
+    qr_buffer = BytesIO()
+    qr_img.save(qr_buffer, format='PNG')
+    qr_buffer.seek(0)
+    qr_b64 = base64.b64encode(qr_buffer.getvalue()).decode('utf-8')
+
+    return render_template('admin_setup_2fa.html',
+                           qr_code=qr_b64,
+                           totp_secret=user.totp_secret,
+                           user_name=user.name)
+
+
+@app.route('/admin/verify-2fa', methods=['GET', 'POST'])
+def admin_verify_2fa():
+    """Verify TOTP code during login"""
+    user_id = session.get('pending_2fa_user_id')
+    if not user_id:
+        return redirect(url_for('admin_login'))
+
+    user = AdminUser.query.get(user_id)
+    if not user:
+        session.pop('pending_2fa_user_id', None)
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        code = request.form.get('totp_code', '').strip()
+        if user.verify_totp(code):
+            session.pop('pending_2fa_user_id', None)
+            login_user(user)
+            return redirect(url_for('admin_dashboard'))
+        else:
+            user.record_failed_login()
+            db.session.commit()
+            if user.is_locked():
+                session.pop('pending_2fa_user_id', None)
+                flash('Account locked due to too many failed attempts.', 'error')
+                return redirect(url_for('admin_login'))
+            flash('Invalid code. Please try again.', 'error')
+
+    return render_template('admin_verify_2fa.html')
+
+
 # ============================================================================
 # DATABASE MIGRATIONS
 # ============================================================================
@@ -1162,6 +1319,18 @@ def run_migrations():
         if 'password_reset_expires' not in admin_cols:
             conn.execute(text('ALTER TABLE admin_user ADD COLUMN password_reset_expires TIMESTAMP'))
             print("Migration: added admin_user.password_reset_expires")
+        if 'totp_secret' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN totp_secret VARCHAR(32)'))
+            print("Migration: added admin_user.totp_secret")
+        if 'totp_enabled' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE'))
+            print("Migration: added admin_user.totp_enabled")
+        if 'failed_login_attempts' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN failed_login_attempts INTEGER DEFAULT 0'))
+            print("Migration: added admin_user.failed_login_attempts")
+        if 'locked_until' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN locked_until TIMESTAMP'))
+            print("Migration: added admin_user.locked_until")
 
 
 # ============================================================================

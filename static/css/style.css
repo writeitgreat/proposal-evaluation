@@ -297,7 +297,7 @@ h1, h2, h3 { color: var(--gray-900); }
 .stat-number { font-size: 2rem; font-weight: 700; color: var(--accent); }
 .stat-label { font-size: 0.75rem; opacity: 0.8; text-transform: uppercase; color: white; }
 
-.filters-bar { background: white; padding: 1rem 2rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid var(--gray-200); }
+.filters-bar { background: white; padding: 1rem 2rem; display: flex; gap: 1rem; align-items: center; justify-content: center; border-bottom: 1px solid var(--gray-200); }
 .filter-group { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 .filter-group label { font-size: 0.875rem; color: var(--gray-600); font-weight: 500; white-space: nowrap; }
 .filter-group select, .filter-group input { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 0.875rem; }
