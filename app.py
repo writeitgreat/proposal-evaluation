@@ -108,6 +108,10 @@ class Proposal(db.Model):
     overall_score = db.Column(db.Float)
     evaluation_json = db.Column(db.Text)
     proposal_text = db.Column(db.Text)
+
+    # Original uploaded file
+    original_filename = db.Column(db.String(500))
+    original_file = db.Column(db.LargeBinary)
     
     # Status tracking
     status = db.Column(db.String(50), default='submitted')
@@ -203,11 +207,11 @@ def calculate_weighted_score(scores, proposal_type):
 
 
 def determine_tier(score):
-    if score >= 90:
+    if score >= 85:
         return 'A'
-    elif score >= 80:
-        return 'B'
     elif score >= 70:
+        return 'B'
+    elif score >= 60:
         return 'C'
     return 'D'
 
@@ -346,19 +350,19 @@ Provide your evaluation as a JSON object with this EXACT structure:
     "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"]
 }}
 
-SCORING GUIDELINES (use standard American grading scale):
-- A-Tier (90-100): Exceptional, publisher-ready proposal with strong platform
-- B-Tier (80-89): Strong foundation, minor improvements needed to be publisher-ready
-- C-Tier (70-79): Developing, shows promise but needs significant strengthening
-- D-Tier (Below 70): Early stage, needs substantial work before submission
+SCORING GUIDELINES:
+- A-Tier (85-100): Exceptional, publisher-ready proposal with strong platform
+- B-Tier (70-84): Strong foundation, improvements needed to be publisher-ready
+- C-Tier (60-69): Developing, shows promise but needs significant strengthening
+- D-Tier (Below 60): Early stage, needs substantial work before submission
 
-IMPORTANT: Your scores MUST align with the tier. If a proposal deserves a B, score it 80-89. If it deserves a C, score it 70-79. Do NOT give a score of 74 and call it B-tier - that would be C-tier.
+IMPORTANT: Your scores MUST align with the tier. If a proposal deserves a B, score it 70-84. If it deserves a C, score it 60-69. Do NOT give a score of 72 and call it C-tier - that would be B-tier.
 
 ADVANCE ESTIMATE RULES (STRICT - you MUST follow these exactly):
-- A-Tier (score >= 90): viable=true, lowRange 0-25000, highRange max 25000
-- B-Tier (score 80-89): viable=true, lowRange 0-10000, highRange max 10000
-- C-Tier (score 70-79): viable=false, lowRange=0, highRange=0
-- D-Tier (score < 70): viable=false, lowRange=0, highRange=0
+- A-Tier (score >= 85): viable=true, lowRange 0-25000, highRange max 25000
+- B-Tier (score 70-84): viable=true, lowRange 0-10000, highRange max 10000
+- C-Tier (score 60-69): viable=false, lowRange=0, highRange=0
+- D-Tier (score < 60): viable=false, lowRange=0, highRange=0
 - NEVER estimate an advance higher than $25,000
 - For C and D tier proposals, ALWAYS set viable=false and both ranges to 0
 
@@ -372,7 +376,8 @@ Return ONLY the JSON object, no other text."""
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.3,
+            temperature=0,
+            seed=42,
             max_tokens=6000
         )
 
@@ -643,7 +648,8 @@ def send_team_notification(proposal):
 
                 <div style="margin-top: 20px;">
                     <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Evaluation</a>
-                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}/view-proposal" style="display: inline-block; padding: 12px 24px; background: #2D1B69; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px;">Read Original Proposal</a>
+                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}/view-proposal" style="display: inline-block; padding: 12px 24px; background: #2D1B69; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px;">Read Proposal Text</a>
+                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}/download-proposal" style="display: inline-block; padding: 12px 24px; background: white; color: #2D1B69; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px; border: 2px solid #2D1B69;">Download Original File</a>
                 </div>
             </div>
         </body>
@@ -739,10 +745,16 @@ def api_evaluate():
         if not file or file.filename == '':
             return jsonify({'success': False, 'error': 'Please upload your proposal document.'})
 
-        filename = secure_filename(file.filename).lower()
+        original_filename = secure_filename(file.filename)
+        filename = original_filename.lower()
         if filename.endswith('.pdf'):
+            # Read file bytes for storage, then reset for text extraction
+            file_bytes = file.read()
+            file.seek(0)
             proposal_text = extract_text_from_pdf(file)
         elif filename.endswith('.docx') or filename.endswith('.doc'):
+            file_bytes = file.read()
+            file.seek(0)
             proposal_text = extract_text_from_docx(file)
         else:
             return jsonify({'success': False, 'error': 'Please upload a PDF or Word document.'})
@@ -759,6 +771,8 @@ def api_evaluate():
             proposal_type=proposal_type,
             ownership_confirmed=True,
             proposal_text=proposal_text[:50000],
+            original_filename=original_filename,
+            original_file=file_bytes,
             status='processing'
         )
 
@@ -936,8 +950,29 @@ def view_proposal_text(submission_id):
 @app.route('/admin/proposal/<submission_id>/download-proposal')
 @login_required
 def download_proposal_text(submission_id):
-    """Download the original submitted proposal text as a .txt file"""
+    """Download the original uploaded file, or extracted text as .txt fallback"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+
+    # Serve original file if available
+    if proposal.original_file and proposal.original_filename:
+        file_buffer = BytesIO(proposal.original_file)
+        fname = proposal.original_filename.lower()
+        if fname.endswith('.pdf'):
+            mimetype = 'application/pdf'
+        elif fname.endswith('.docx'):
+            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        elif fname.endswith('.doc'):
+            mimetype = 'application/msword'
+        else:
+            mimetype = 'application/octet-stream'
+        return send_file(
+            file_buffer,
+            as_attachment=True,
+            download_name=proposal.original_filename,
+            mimetype=mimetype
+        )
+
+    # Fallback to extracted text
     if not proposal.proposal_text:
         flash('No proposal text available for this submission.', 'error')
         return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
@@ -982,6 +1017,27 @@ def reset_admin_temp(password):
 
 
 # ============================================================================
+# DATABASE MIGRATIONS
+# ============================================================================
+
+def run_migrations():
+    """Add new columns to existing tables if they don't exist"""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    columns = [col['name'] for col in inspector.get_columns('proposal')]
+    # Use BYTEA for PostgreSQL, BLOB for SQLite
+    is_postgres = 'postgresql' in str(db.engine.url)
+    blob_type = 'BYTEA' if is_postgres else 'BLOB'
+    with db.engine.begin() as conn:
+        if 'original_filename' not in columns:
+            conn.execute(text('ALTER TABLE proposal ADD COLUMN original_filename VARCHAR(500)'))
+            print("Migration: added original_filename column")
+        if 'original_file' not in columns:
+            conn.execute(text(f'ALTER TABLE proposal ADD COLUMN original_file {blob_type}'))
+            print("Migration: added original_file column")
+
+
+# ============================================================================
 # CLI COMMANDS
 # ============================================================================
 
@@ -989,6 +1045,7 @@ def reset_admin_temp(password):
 def init_db():
     """Initialize the database"""
     db.create_all()
+    run_migrations()
     print("Database initialized!")
 
 
@@ -1028,7 +1085,13 @@ def server_error(e):
     return render_template('error.html', error_code=500, error_message="Server error"), 500
 
 
+with app.app_context():
+    db.create_all()
+    try:
+        run_migrations()
+    except Exception as e:
+        print(f"Migration note: {e}")
+
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True, port=5000)

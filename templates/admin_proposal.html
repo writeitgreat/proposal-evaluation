@@ -193,12 +193,14 @@
 
             <div class="detail-section">
                 <h3>Original Proposal</h3>
+                {% if proposal.original_file %}
+                <a href="{{ url_for('download_proposal_text', submission_id=proposal.submission_id) }}" class="btn btn-accent" style="width: 100%; text-align: center;">Download Original {{ proposal.original_filename.rsplit('.', 1)[-1]|upper if proposal.original_filename else 'File' }}</a>
+                {% endif %}
                 {% if proposal.proposal_text %}
-                <a href="{{ url_for('view_proposal_text', submission_id=proposal.submission_id) }}" class="btn btn-primary" style="width: 100%; text-align: center;">View Full Proposal</a>
-                <a href="{{ url_for('download_proposal_text', submission_id=proposal.submission_id) }}" class="btn btn-outline" style="width: 100%; margin-top: 0.5rem; text-align: center;">Download as .txt</a>
+                <a href="{{ url_for('view_proposal_text', submission_id=proposal.submission_id) }}" class="btn {% if proposal.original_file %}btn-outline{% else %}btn-primary{% endif %}" style="width: 100%; margin-top: 0.5rem; text-align: center;">View Extracted Text</a>
                 <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem; text-align: center;">{{ "{:,}".format(proposal.proposal_text|length) }} characters of extracted text</p>
-                {% else %}
-                <p style="color: var(--gray-500); text-align: center;">No proposal text available</p>
+                {% elif not proposal.original_file %}
+                <p style="color: var(--gray-500); text-align: center;">No proposal available</p>
                 {% endif %}
             </div>
         </div>

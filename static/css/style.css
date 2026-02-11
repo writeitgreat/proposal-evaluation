@@ -292,14 +292,18 @@ h1, h2, h3 { color: var(--gray-900); }
 .dashboard-header { background: var(--primary); color: white; padding: 2rem; border-bottom: 4px solid var(--accent); }
 .dashboard-header h1 { color: white; margin-bottom: 0.5rem; }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
-.stat-card { background: rgba(255,255,255,0.1); padding: 1rem; border-radius: var(--radius); text-align: center; }
+.stat-card { background: rgba(255,255,255,0.1); padding: 1rem; border-radius: var(--radius); text-align: center; text-decoration: none; color: inherit; transition: background 0.2s, transform 0.2s; cursor: pointer; display: block; }
+.stat-card:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
 .stat-number { font-size: 2rem; font-weight: 700; color: var(--accent); }
-.stat-label { font-size: 0.75rem; opacity: 0.8; text-transform: uppercase; }
+.stat-label { font-size: 0.75rem; opacity: 0.8; text-transform: uppercase; color: white; }
 
-.filters-bar { background: white; padding: 1rem 2rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--gray-200); }
-.filter-group { display: flex; align-items: center; gap: 0.5rem; }
-.filter-group label { font-size: 0.875rem; color: var(--gray-600); font-weight: 500; }
+.filters-bar { background: white; padding: 1rem 2rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid var(--gray-200); }
+.filter-group { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.filter-group label { font-size: 0.875rem; color: var(--gray-600); font-weight: 500; white-space: nowrap; }
 .filter-group select, .filter-group input { padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 0.875rem; }
+.filter-group input[type="text"] { width: 200px; }
+.filter-group select { min-width: 100px; }
+@media (max-width: 768px) { .filters-bar { flex-wrap: wrap; } .filter-group input[type="text"] { width: 100%; } }
 
 .proposals-table { width: 100%; border-collapse: collapse; }
 .proposals-table th { text-align: left; padding: 1rem; background: var(--gray-50); font-size: 0.75rem; text-transform: uppercase; color: var(--gray-500); border-bottom: 2px solid var(--gray-200); }
