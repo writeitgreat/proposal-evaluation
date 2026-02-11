@@ -326,6 +326,44 @@ def get_tier_description(tier):
     }.get(tier, '')
 
 
+def compute_advance_estimate(evaluation):
+    """Compute advance estimate deterministically from score and tier.
+    Always call this on any evaluation dict to ensure correct ranges."""
+    tier = evaluation.get('tier', 'D')
+    total = evaluation.get('total_score', 0)
+    adv = evaluation.get('advanceEstimate', {})
+
+    if tier == 'A':
+        adv['viable'] = True
+        if total >= 93:
+            adv['lowRange'] = 15000
+            adv['highRange'] = 25000
+        else:
+            adv['lowRange'] = 10000
+            adv['highRange'] = 15000
+    elif tier == 'B':
+        adv['viable'] = True
+        if total >= 77:
+            adv['lowRange'] = 5000
+            adv['highRange'] = 10000
+        else:
+            adv['lowRange'] = 0
+            adv['highRange'] = 5000
+    else:
+        adv['viable'] = False
+        adv['lowRange'] = 0
+        adv['highRange'] = 0
+        adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
+
+    evaluation['advanceEstimate'] = adv
+    evaluation['advance_estimate'] = {
+        'low': adv.get('lowRange', 0),
+        'high': adv.get('highRange', 0),
+        'notes': adv.get('reasoning', '')
+    }
+    return evaluation
+
+
 def evaluate_proposal(proposal_text, proposal_type='full', author_name='', book_title=''):
     """Evaluate proposal using OpenAI with comprehensive analysis"""
 
@@ -501,45 +539,13 @@ Return ONLY the JSON object, no other text."""
         evaluation['proposal_type'] = proposal_type
 
         # Compute advance estimate deterministically from score and tier
-        tier = evaluation['tier']
-        total = evaluation['total_score']
-        adv = evaluation.get('advanceEstimate', {})
-
-        if tier == 'A':
-            adv['viable'] = True
-            if total >= 93:
-                adv['lowRange'] = 15000
-                adv['highRange'] = 25000
-            else:
-                adv['lowRange'] = 10000
-                adv['highRange'] = 15000
-        elif tier == 'B':
-            adv['viable'] = True
-            if total >= 77:
-                adv['lowRange'] = 5000
-                adv['highRange'] = 10000
-            else:
-                adv['lowRange'] = 0
-                adv['highRange'] = 5000
-        else:
-            # C and D tier — not viable
-            adv['viable'] = False
-            adv['lowRange'] = 0
-            adv['highRange'] = 0
-            adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
-
-        evaluation['advanceEstimate'] = adv
+        compute_advance_estimate(evaluation)
 
         # Backward-compat aliases so old templates/emails still work
         evaluation['overall_score'] = evaluation['total_score']
         evaluation['summary'] = evaluation.get('executiveSummary', '')
         evaluation['red_flags'] = evaluation.get('redFlags', [])
         evaluation['next_steps'] = evaluation.get('recommendedNextSteps', [])
-        evaluation['advance_estimate'] = {
-            'low': adv.get('lowRange', 0),
-            'high': adv.get('highRange', 0),
-            'notes': adv.get('reasoning', '')
-        }
         # Map scores to old categories format for backward compat
         cats = {}
         for key, score_data in scores.items():
@@ -562,6 +568,8 @@ Return ONLY the JSON object, no other text."""
 def generate_pdf_report(proposal):
     """Generate PDF report for proposal using xhtml2pdf"""
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+    if evaluation:
+        compute_advance_estimate(evaluation)
 
     # Ensure numeric values are properly typed
     advance = evaluation.get('advance_estimate')
@@ -647,6 +655,8 @@ def send_email(to_email, subject, html_content, attachments=None):
 def send_author_notification(proposal):
     """Send evaluation results to the author"""
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+    if evaluation:
+        compute_advance_estimate(evaluation)
 
     score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
     summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'See attached report for details.')
@@ -712,6 +722,8 @@ def send_team_notification(proposal):
     """Send notification to team about new submission"""
     try:
         evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+        if evaluation:
+            compute_advance_estimate(evaluation)
 
         score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
         summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'No summary')
@@ -816,6 +828,9 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 db.session.commit()
                 print(f"Background eval: OpenAI evaluation failed for {submission_id}")
                 return
+
+            # Always recompute advance estimate (fixes cached results with stale ranges)
+            compute_advance_estimate(evaluation)
 
             proposal.tier = evaluation.get('tier', 'C')
             proposal.overall_score = evaluation.get('total_score', evaluation.get('overall_score', 50))
@@ -942,6 +957,8 @@ def results(submission_id):
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
     processing = proposal.status == 'processing'
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+    if evaluation:
+        compute_advance_estimate(evaluation)
     return render_template('results.html', proposal=proposal, evaluation=evaluation, processing=processing)
 
 
@@ -1087,8 +1104,10 @@ def admin_proposal_detail(submission_id):
         return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
     
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
-    return render_template('admin_proposal.html', 
-                         proposal=proposal, 
+    if evaluation:
+        compute_advance_estimate(evaluation)
+    return render_template('admin_proposal.html',
+                         proposal=proposal,
                          evaluation=evaluation,
                          status_options=STATUS_OPTIONS)
 
