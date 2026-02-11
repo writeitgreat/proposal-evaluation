@@ -7,6 +7,7 @@ Flask application with database, admin dashboard, status tracking, and email not
 import os
 import json
 import uuid
+import hashlib
 import smtplib
 import traceback
 import threading
@@ -172,6 +173,7 @@ class Proposal(db.Model):
     # Submission details
     proposal_type = db.Column(db.String(50), default='full')
     ownership_confirmed = db.Column(db.Boolean, default=True)
+    content_hash = db.Column(db.String(64), index=True)  # SHA-256 of proposal text + type
     
     # Evaluation results
     tier = db.Column(db.String(10))
@@ -281,6 +283,18 @@ def get_weights_for_type(proposal_type):
     elif proposal_type == 'no_marketing':
         return NO_MARKETING_WEIGHTS
     return FULL_WEIGHTS
+
+
+def compute_content_hash(proposal_text, proposal_type):
+    """SHA-256 hash of proposal content + type for dedup/caching"""
+    content = f"{proposal_type}::{proposal_text.strip()}"
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def bucket_score(score, step=5):
+    """Round a score to the nearest step (e.g. 5) to reduce LLM scoring noise"""
+    s = int(round(float(score or 0) / step) * step)
+    return max(0, min(100, s))
 
 
 def calculate_weighted_score(scores, proposal_type):
@@ -443,7 +457,9 @@ SCORING GUIDELINES:
 - C-Tier (60-69): Developing, shows promise but needs significant strengthening
 - D-Tier (Below 60): Early stage, needs substantial work before submission
 
-IMPORTANT: Your scores MUST align with the tier. If a proposal deserves a B, score it 70-84. If it deserves a C, score it 60-69. Do NOT give a score of 72 and call it C-tier - that would be B-tier.
+IMPORTANT SCORING RULES:
+1. Score each category in multiples of 5 (e.g. 60, 65, 70, 75, 80, 85, 90, 95). Never use scores like 72 or 83.
+2. Your scores MUST align with the tier. If a proposal deserves a B, score it 70-84. If it deserves a C, score it 60-69. Do NOT give a score of 70 and call it C-tier - that would be B-tier.
 
 ADVANCE ESTIMATE RULES (STRICT - you MUST follow these exactly):
 - A-Tier (score >= 85): viable=true, lowRange 0-25000, highRange max 25000
@@ -478,8 +494,13 @@ Return ONLY the JSON object, no other text."""
 
         evaluation = json.loads(response_text.strip())
 
-        # Calculate weighted total score
+        # Bucket individual category scores to nearest 5 to eliminate LLM noise
         scores = evaluation.get('scores', {})
+        for cat_key, cat_data in scores.items():
+            if isinstance(cat_data, dict) and 'score' in cat_data:
+                cat_data['score'] = bucket_score(cat_data['score'])
+
+        # Calculate weighted total score from bucketed scores
         evaluation['total_score'] = calculate_weighted_score(scores, proposal_type)
         evaluation['tier'] = determine_tier(evaluation['total_score'])
         evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
@@ -769,7 +790,22 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 print(f"Background eval: proposal {submission_id} not found")
                 return
 
-            evaluation = evaluate_proposal(proposal_text, proposal_type, author_name, book_title)
+            # Content-hash caching: reuse evaluation if same proposal was evaluated before
+            c_hash = compute_content_hash(proposal_text, proposal_type)
+            proposal.content_hash = c_hash
+
+            cached = (Proposal.query
+                      .filter(Proposal.content_hash == c_hash,
+                              Proposal.evaluation_json.isnot(None),
+                              Proposal.id != proposal.id)
+                      .first())
+
+            if cached and cached.evaluation_json:
+                evaluation = json.loads(cached.evaluation_json)
+                print(f"Background eval: using cached result for {submission_id} (matched {cached.submission_id})")
+            else:
+                evaluation = evaluate_proposal(proposal_text, proposal_type, author_name, book_title)
+
             if not evaluation:
                 proposal.status = 'error'
                 db.session.commit()
@@ -1435,6 +1471,9 @@ def run_migrations():
         if 'original_file' not in proposal_cols:
             conn.execute(text(f'ALTER TABLE proposal ADD COLUMN original_file {blob_type}'))
             print("Migration: added proposal.original_file")
+        if 'content_hash' not in proposal_cols:
+            conn.execute(text('ALTER TABLE proposal ADD COLUMN content_hash VARCHAR(64)'))
+            print("Migration: added proposal.content_hash")
 
     # AdminUser table migrations
     admin_cols = [col['name'] for col in inspector.get_columns('admin_user')]
