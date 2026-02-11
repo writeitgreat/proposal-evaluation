@@ -69,7 +69,7 @@
         <thead>
             <tr>
                 <th style="width: 32px;"><input type="checkbox" id="selectAll" class="row-checkbox" title="Select all"></th>
-                <th>Submitted</th><th>Author</th><th>Book Title</th><th>Tier</th><th>Score</th><th>Status</th><th>Actions</th>
+                <th>Submitted</th><th>Author</th><th>Book Title</th><th>Type</th><th>Tier</th><th>Score</th><th>Status</th><th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -79,6 +79,7 @@
                 <td><span class="submitted-date">{{ p.submitted_at.strftime('%b %d, %Y') }}</span></td>
                 <td class="author-cell"><div class="author-name">{{ p.author_name }}</div><div class="author-email">{{ p.author_email }}</div></td>
                 <td class="title-cell"><div class="book-title">{{ p.book_title[:50] }}{% if p.book_title|length > 50 %}...{% endif %}</div></td>
+                <td><span class="type-badge type-{{ p.proposal_type or 'full' }}">{% if p.proposal_type == 'marketing_only' %}Marketing{% elif p.proposal_type == 'no_marketing' %}No Marketing{% else %}Full{% endif %}</span></td>
                 <td>{% if p.tier %}<span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span>{% else %}<span class="status-badge submitted">Processing</span>{% endif %}</td>
                 <td><strong>{% if p.overall_score is not none %}{{ p.overall_score|round|int }}/100{% else %}--{% endif %}</strong></td>
                 <td><span class="status-badge {{ p.status }}">{{ p.status|replace('_', ' ')|title }}</span></td>
