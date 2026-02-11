@@ -14,6 +14,9 @@
             <a href="{{ url_for('admin_dashboard', status='submitted') }}" class="stat-card"><div class="stat-number">{{ stats.submitted }}</div><div class="stat-label">New</div></a>
             <a href="{{ url_for('admin_dashboard', status='shopping') }}" class="stat-card"><div class="stat-number">{{ stats.shopping }}</div><div class="stat-label">Shopping</div></a>
         </div>
+        <div class="dashboard-actions">
+            <a href="{{ url_for('admin_add_proposal') }}" class="btn btn-accent" style="font-size: 0.875rem;">+ Add Manually</a>
+        </div>
     </div>
 </section>
 
@@ -43,22 +46,50 @@
     <a href="{{ url_for('admin_dashboard') }}" style="padding: 0.5rem 1rem; color: var(--gray-600);">Clear</a>
 </form>
 
+{# Bulk Actions Bar - shown when proposals are checked #}
+<form method="POST" action="{{ url_for('admin_bulk_action') }}" id="bulkForm">
+    <div class="bulk-bar" id="bulkBar">
+        <span class="bulk-count"><span id="bulkCount">0</span> selected</span>
+        <select name="bulk_action" id="bulkAction">
+            <option value="">Set status...</option>
+            {% for value, label in status_options %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+            <option value="delete">Delete</option>
+        </select>
+        <button type="submit" class="bulk-apply" id="bulkApply">Apply</button>
+        <button type="button" class="bulk-cancel" id="bulkCancel">Cancel</button>
+    </div>
+    <div id="bulkIds"></div>
+</form>
+
 <div class="container" style="padding: 0;">
     {% if proposals.items %}
     <table class="proposals-table">
         <thead>
-            <tr><th>Submitted</th><th>Author</th><th>Book Title</th><th>Tier</th><th>Score</th><th>Status</th><th>Action</th></tr>
+            <tr>
+                <th style="width: 32px;"><input type="checkbox" id="selectAll" class="row-checkbox" title="Select all"></th>
+                <th>Submitted</th><th>Author</th><th>Book Title</th><th>Tier</th><th>Score</th><th>Status</th><th>Actions</th>
+            </tr>
         </thead>
         <tbody>
             {% for p in proposals.items %}
             <tr>
+                <td><input type="checkbox" class="row-checkbox row-select" value="{{ p.submission_id }}" data-id="{{ p.submission_id }}"></td>
                 <td><span class="submitted-date">{{ p.submitted_at.strftime('%b %d, %Y') }}</span></td>
                 <td class="author-cell"><div class="author-name">{{ p.author_name }}</div><div class="author-email">{{ p.author_email }}</div></td>
                 <td class="title-cell"><div class="book-title">{{ p.book_title[:50] }}{% if p.book_title|length > 50 %}...{% endif %}</div></td>
                 <td>{% if p.tier %}<span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span>{% else %}<span class="status-badge submitted">Processing</span>{% endif %}</td>
                 <td><strong>{% if p.overall_score is not none %}{{ p.overall_score|round|int }}/100{% else %}--{% endif %}</strong></td>
                 <td><span class="status-badge {{ p.status }}">{{ p.status|replace('_', ' ')|title }}</span></td>
-                <td><a href="{{ url_for('admin_proposal_detail', submission_id=p.submission_id) }}" class="view-link">View →</a></td>
+                <td>
+                    <div class="quick-actions">
+                        <a href="{{ url_for('admin_proposal_detail', submission_id=p.submission_id) }}" class="qa-edit">View</a>
+                        <form method="POST" action="{{ url_for('admin_delete_proposal', submission_id=p.submission_id) }}" style="display:inline;" onsubmit="return confirm('Delete &quot;{{ p.book_title|e }}&quot;?');">
+                            <button type="submit" class="qa-delete">Delete</button>
+                        </form>
+                    </div>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -76,4 +107,66 @@
     <div class="empty-state"><h3>No proposals found</h3><p>Proposals will appear here once authors submit them.</p></div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var selectAll = document.getElementById('selectAll');
+    var rows = document.querySelectorAll('.row-select');
+    var bulkBar = document.getElementById('bulkBar');
+    var bulkCount = document.getElementById('bulkCount');
+    var bulkIds = document.getElementById('bulkIds');
+    var bulkForm = document.getElementById('bulkForm');
+    var bulkCancel = document.getElementById('bulkCancel');
+    var bulkAction = document.getElementById('bulkAction');
+
+    function updateBulkBar() {
+        var checked = document.querySelectorAll('.row-select:checked');
+        var count = checked.length;
+        bulkCount.textContent = count;
+        bulkBar.classList.toggle('active', count > 0);
+        // Update hidden inputs
+        bulkIds.innerHTML = '';
+        checked.forEach(function(cb) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'proposal_ids';
+            input.value = cb.value;
+            bulkIds.appendChild(input);
+        });
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            rows.forEach(function(cb) { cb.checked = selectAll.checked; });
+            updateBulkBar();
+        });
+    }
+
+    rows.forEach(function(cb) {
+        cb.addEventListener('change', updateBulkBar);
+    });
+
+    if (bulkCancel) {
+        bulkCancel.addEventListener('click', function() {
+            selectAll.checked = false;
+            rows.forEach(function(cb) { cb.checked = false; });
+            updateBulkBar();
+        });
+    }
+
+    if (bulkForm) {
+        bulkForm.addEventListener('submit', function(e) {
+            var action = bulkAction.value;
+            if (!action) { e.preventDefault(); alert('Please select an action.'); return; }
+            if (action === 'delete') {
+                if (!confirm('Delete ' + bulkCount.textContent + ' selected proposal(s)? This cannot be undone.')) {
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+})();
+</script>
 {% endblock %}
