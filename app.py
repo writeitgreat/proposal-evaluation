@@ -198,6 +198,20 @@ class Proposal(db.Model):
     team_email_sent = db.Column(db.Boolean, default=False)
 
 
+class ProposalNote(db.Model):
+    """Activity log entry for a proposal — notes, status changes, etc."""
+    id = db.Column(db.Integer, primary_key=True)
+    proposal_id = db.Column(db.Integer, db.ForeignKey('proposal.id'), nullable=False)
+    user_name = db.Column(db.String(200))
+    action = db.Column(db.String(50))  # 'note', 'status_change', 'created', 'email_sent'
+    old_value = db.Column(db.String(100))
+    new_value = db.Column(db.String(100))
+    content = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    proposal = db.relationship('Proposal', backref=db.backref('activity_log', lazy='dynamic', order_by='ProposalNote.created_at.desc()'))
+
+
 @login_manager.user_loader
 def load_user(user_id):
     user = AdminUser.query.get(int(user_id))
@@ -1146,13 +1160,33 @@ def admin_proposal_detail(submission_id):
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
     
     if request.method == 'POST':
+        user_name = current_user.name if current_user.is_authenticated else 'System'
+
+        # Track status changes
         new_status = request.form.get('status')
-        if new_status and new_status in [s[0] for s in STATUS_OPTIONS]:
+        if new_status and new_status in [s[0] for s in STATUS_OPTIONS] and new_status != proposal.status:
+            status_labels = dict(STATUS_OPTIONS)
+            note = ProposalNote(
+                proposal_id=proposal.id,
+                user_name=user_name,
+                action='status_change',
+                old_value=status_labels.get(proposal.status, proposal.status),
+                new_value=status_labels.get(new_status, new_status),
+            )
+            db.session.add(note)
             proposal.status = new_status
-        
-        notes = request.form.get('notes', '')
-        proposal.notes = notes
-        
+
+        # Add note if provided
+        note_text = request.form.get('notes', '').strip()
+        if note_text:
+            note = ProposalNote(
+                proposal_id=proposal.id,
+                user_name=user_name,
+                action='note',
+                content=note_text,
+            )
+            db.session.add(note)
+
         db.session.commit()
         flash('Proposal updated successfully', 'success')
         return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
@@ -1160,9 +1194,11 @@ def admin_proposal_detail(submission_id):
     evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
     if evaluation:
         compute_advance_estimate(evaluation)
+    activity = proposal.activity_log.order_by(ProposalNote.created_at.desc()).all()
     return render_template('admin_proposal.html',
                          proposal=proposal,
                          evaluation=evaluation,
+                         activity=activity,
                          status_options=STATUS_OPTIONS)
 
 
@@ -1695,6 +1731,11 @@ def run_migrations():
         if 'is_active_account' not in admin_cols:
             conn.execute(text('ALTER TABLE admin_user ADD COLUMN is_active_account BOOLEAN DEFAULT TRUE'))
             print("Migration: added admin_user.is_active_account")
+
+    # ProposalNote table (new table)
+    if not inspector.has_table('proposal_note'):
+        ProposalNote.__table__.create(db.engine)
+        print("Migration: created proposal_note table")
 
 
 # ============================================================================
