@@ -461,13 +461,7 @@ IMPORTANT SCORING RULES:
 1. Score each category in multiples of 5 (e.g. 60, 65, 70, 75, 80, 85, 90, 95). Never use scores like 72 or 83.
 2. Your scores MUST align with the tier. If a proposal deserves a B, score it 70-84. If it deserves a C, score it 60-69. Do NOT give a score of 70 and call it C-tier - that would be B-tier.
 
-ADVANCE ESTIMATE RULES (STRICT - you MUST follow these exactly):
-- A-Tier (score >= 85): viable=true, lowRange 0-25000, highRange max 25000
-- B-Tier (score 70-84): viable=true, lowRange 0-10000, highRange max 10000
-- C-Tier (score 60-69): viable=false, lowRange=0, highRange=0
-- D-Tier (score < 60): viable=false, lowRange=0, highRange=0
-- NEVER estimate an advance higher than $25,000
-- For C and D tier proposals, ALWAYS set viable=false and both ranges to 0
+ADVANCE ESTIMATE: The advance ranges will be calculated automatically. For the advanceEstimate field, just provide your reasoning about commercial viability. Set lowRange and highRange to 0 — they will be overridden by the system.
 
 Return ONLY the JSON object, no other text."""
 
@@ -506,23 +500,34 @@ Return ONLY the JSON object, no other text."""
         evaluation['tierDescription'] = get_tier_description(evaluation['tier'])
         evaluation['proposal_type'] = proposal_type
 
-        # Enforce advance estimate caps based on tier (strict business rules)
+        # Compute advance estimate deterministically from score and tier
         tier = evaluation['tier']
+        total = evaluation['total_score']
         adv = evaluation.get('advanceEstimate', {})
-        if tier in ('C', 'D'):
+
+        if tier == 'A':
+            adv['viable'] = True
+            if total >= 93:
+                adv['lowRange'] = 15000
+                adv['highRange'] = 25000
+            else:
+                adv['lowRange'] = 10000
+                adv['highRange'] = 15000
+        elif tier == 'B':
+            adv['viable'] = True
+            if total >= 77:
+                adv['lowRange'] = 5000
+                adv['highRange'] = 10000
+            else:
+                adv['lowRange'] = 0
+                adv['highRange'] = 5000
+        else:
+            # C and D tier — not viable
             adv['viable'] = False
             adv['lowRange'] = 0
             adv['highRange'] = 0
-            if not adv.get('reasoning'):
-                adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
-        elif tier == 'B':
-            adv['viable'] = True
-            adv['lowRange'] = min(int(adv.get('lowRange', 0) or 0), 10000)
-            adv['highRange'] = min(int(adv.get('highRange', 0) or 0), 10000)
-        elif tier == 'A':
-            adv['viable'] = True
-            adv['lowRange'] = min(int(adv.get('lowRange', 0) or 0), 25000)
-            adv['highRange'] = min(int(adv.get('highRange', 0) or 0), 25000)
+            adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
+
         evaluation['advanceEstimate'] = adv
 
         # Backward-compat aliases so old templates/emails still work
