@@ -95,7 +95,7 @@ class AdminUser(UserMixin, db.Model):
     password_reset_expires = db.Column(db.DateTime)
 
     # TOTP 2FA
-    totp_secret = db.Column(db.String(32))
+    totp_secret = db.Column(db.String(64))
     totp_enabled = db.Column(db.Boolean, default=False)
 
     # Login security
@@ -151,8 +151,12 @@ class AdminUser(UserMixin, db.Model):
     def verify_totp(self, code):
         if not self.totp_secret:
             return False
+        # Strip any non-digit characters from input
+        code = ''.join(c for c in str(code) if c.isdigit())
+        if len(code) != 6:
+            return False
         totp = pyotp.TOTP(self.totp_secret)
-        return totp.verify(code, valid_window=1)
+        return totp.verify(code, valid_window=2)
 
 
 class Proposal(db.Model):
@@ -955,13 +959,12 @@ def admin_login():
                 session['pending_2fa_user_id'] = user.id
                 return redirect(url_for('admin_verify_2fa'))
 
-            # If 2FA not set up yet, require setup
-            if not user.totp_secret:
-                session['setup_2fa_user_id'] = user.id
-                return redirect(url_for('admin_setup_2fa'))
-
-            login_user(user)
-            return redirect(url_for('admin_dashboard'))
+            # 2FA not yet enabled — always require setup (mandatory)
+            # Reset any stale secret so user gets a fresh QR code
+            user.totp_secret = None
+            db.session.commit()
+            session['setup_2fa_user_id'] = user.id
+            return redirect(url_for('admin_setup_2fa'))
 
         if user:
             user.record_failed_login()
@@ -1274,12 +1277,12 @@ def admin_setup_2fa():
         else:
             flash('Invalid code. Please try again with a new code from your authenticator app.', 'error')
 
-    # Generate QR code as base64 image
+    # Generate QR code as base64 image (black on white for maximum scan reliability)
     totp_uri = user.get_totp_uri()
-    qr = qrcode.QRCode(version=1, box_size=6, border=4)
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(totp_uri)
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color='#2D1B69', back_color='white')
+    qr_img = qr.make_image(fill_color='black', back_color='white')
     qr_buffer = BytesIO()
     qr_img.save(qr_buffer, format='PNG')
     qr_buffer.seek(0)
@@ -1443,8 +1446,14 @@ def run_migrations():
             conn.execute(text('ALTER TABLE admin_user ADD COLUMN password_reset_expires TIMESTAMP'))
             print("Migration: added admin_user.password_reset_expires")
         if 'totp_secret' not in admin_cols:
-            conn.execute(text('ALTER TABLE admin_user ADD COLUMN totp_secret VARCHAR(32)'))
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN totp_secret VARCHAR(64)'))
             print("Migration: added admin_user.totp_secret")
+        else:
+            # Widen column if it was created at VARCHAR(32) and reset stale secrets
+            if is_postgres:
+                conn.execute(text('ALTER TABLE admin_user ALTER COLUMN totp_secret TYPE VARCHAR(64)'))
+            conn.execute(text("UPDATE admin_user SET totp_secret = NULL WHERE totp_enabled = FALSE AND totp_secret IS NOT NULL"))
+            print("Migration: widened totp_secret column, reset stale secrets")
         if 'totp_enabled' not in admin_cols:
             conn.execute(text('ALTER TABLE admin_user ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE'))
             print("Migration: added admin_user.totp_enabled")
