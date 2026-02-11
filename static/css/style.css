@@ -345,6 +345,18 @@ footer a { color: var(--accent); }
 .footer-links a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 0.8125rem; }
 .footer-links a:hover { color: var(--accent); }
 
+/* Team Management Action Buttons */
+.btn-action { padding: 0.25rem 0.5rem; border: 1px solid var(--gray-300); border-radius: 4px; font-size: 0.6875rem; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.3px; background: white; transition: all 0.15s; }
+.btn-action:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.btn-action-warn { color: #92400e; border-color: #fbbf24; }
+.btn-action-warn:hover { background: #fef3c7; }
+.btn-action-success { color: #166534; border-color: #86efac; }
+.btn-action-success:hover { background: #dcfce7; }
+.btn-action-info { color: #1e40af; border-color: #93c5fd; }
+.btn-action-info:hover { background: #dbeafe; }
+.btn-action-danger { color: #991b1b; border-color: #fca5a5; }
+.btn-action-danger:hover { background: #fee2e2; }
+
 /* Error Page */
 .error-container { min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; padding: 100px 20px 50px; text-align: center; }
 .error-code { font-size: 6rem; font-weight: 800; color: var(--primary); line-height: 1; margin-bottom: 1rem; }

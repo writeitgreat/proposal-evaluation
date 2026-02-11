@@ -77,12 +77,19 @@ STATUS_OPTIONS = [
 # DATABASE MODELS
 # ============================================================================
 
+ROLE_ADMIN = 'admin'
+ROLE_MEMBER = 'member'
+ROLE_CHOICES = [(ROLE_ADMIN, 'Admin'), (ROLE_MEMBER, 'Member')]
+
+
 class AdminUser(UserMixin, db.Model):
     """Admin user model for secure dashboard access"""
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.String(20), default=ROLE_MEMBER)
+    is_active_account = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     password_reset_token = db.Column(db.String(100))
     password_reset_expires = db.Column(db.DateTime)
@@ -94,6 +101,10 @@ class AdminUser(UserMixin, db.Model):
     # Login security
     failed_login_attempts = db.Column(db.Integer, default=0)
     locked_until = db.Column(db.DateTime)
+
+    @property
+    def is_admin(self):
+        return self.role == ROLE_ADMIN
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -183,7 +194,24 @@ class Proposal(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return AdminUser.query.get(int(user_id))
+    user = AdminUser.query.get(int(user_id))
+    if user and not user.is_active_account:
+        return None  # Deactivated accounts can't access anything
+    return user
+
+
+from functools import wraps
+
+def admin_required(f):
+    """Decorator: requires login + admin role"""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not current_user.is_admin:
+            flash('You need admin privileges to access this page.', 'error')
+            return redirect(url_for('admin_dashboard'))
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ============================================================================
@@ -909,6 +937,10 @@ def admin_login():
 
         user = AdminUser.query.filter_by(email=email).first()
 
+        if user and not user.is_active_account:
+            flash('This account has been deactivated. Contact an admin.', 'error')
+            return render_template('admin_login.html')
+
         if user and user.is_locked():
             remaining = int((user.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
             flash(f'Account locked due to too many failed attempts. Try again in {remaining} minutes.', 'error')
@@ -1290,6 +1322,97 @@ def admin_verify_2fa():
 
 
 # ============================================================================
+# TEAM MANAGEMENT (admin only)
+# ============================================================================
+
+@app.route('/admin/team')
+@admin_required
+def admin_team():
+    """Team management page - admin only"""
+    members = AdminUser.query.order_by(AdminUser.created_at.desc()).all()
+    return render_template('admin_team.html', members=members, role_choices=ROLE_CHOICES)
+
+
+@app.route('/admin/team/<int:user_id>/update-role', methods=['POST'])
+@admin_required
+def admin_update_role(user_id):
+    """Change a team member's role"""
+    target = AdminUser.query.get_or_404(user_id)
+    new_role = request.form.get('role', ROLE_MEMBER)
+
+    if target.id == current_user.id:
+        flash("You can't change your own role.", 'error')
+        return redirect(url_for('admin_team'))
+
+    if new_role not in [r[0] for r in ROLE_CHOICES]:
+        flash('Invalid role.', 'error')
+        return redirect(url_for('admin_team'))
+
+    target.role = new_role
+    db.session.commit()
+    flash(f'{target.name} is now {new_role}.', 'success')
+    return redirect(url_for('admin_team'))
+
+
+@app.route('/admin/team/<int:user_id>/toggle-active', methods=['POST'])
+@admin_required
+def admin_toggle_active(user_id):
+    """Activate or deactivate a team member"""
+    target = AdminUser.query.get_or_404(user_id)
+
+    if target.id == current_user.id:
+        flash("You can't deactivate your own account.", 'error')
+        return redirect(url_for('admin_team'))
+
+    target.is_active_account = not target.is_active_account
+    db.session.commit()
+    status = 'activated' if target.is_active_account else 'deactivated'
+    flash(f'{target.name} has been {status}.', 'success')
+    return redirect(url_for('admin_team'))
+
+
+@app.route('/admin/team/<int:user_id>/reset-2fa', methods=['POST'])
+@admin_required
+def admin_reset_2fa(user_id):
+    """Reset a team member's 2FA (they'll need to set it up again on next login)"""
+    target = AdminUser.query.get_or_404(user_id)
+    target.totp_secret = None
+    target.totp_enabled = False
+    db.session.commit()
+    flash(f"2FA has been reset for {target.name}. They'll set it up again on next login.", 'success')
+    return redirect(url_for('admin_team'))
+
+
+@app.route('/admin/team/<int:user_id>/unlock', methods=['POST'])
+@admin_required
+def admin_unlock_account(user_id):
+    """Unlock a locked account"""
+    target = AdminUser.query.get_or_404(user_id)
+    target.failed_login_attempts = 0
+    target.locked_until = None
+    db.session.commit()
+    flash(f'{target.name} has been unlocked.', 'success')
+    return redirect(url_for('admin_team'))
+
+
+@app.route('/admin/team/<int:user_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_member(user_id):
+    """Permanently delete a team member account"""
+    target = AdminUser.query.get_or_404(user_id)
+
+    if target.id == current_user.id:
+        flash("You can't delete your own account.", 'error')
+        return redirect(url_for('admin_team'))
+
+    name = target.name
+    db.session.delete(target)
+    db.session.commit()
+    flash(f'{name} has been permanently removed.', 'success')
+    return redirect(url_for('admin_team'))
+
+
+# ============================================================================
 # DATABASE MIGRATIONS
 # ============================================================================
 
@@ -1331,6 +1454,13 @@ def run_migrations():
         if 'locked_until' not in admin_cols:
             conn.execute(text('ALTER TABLE admin_user ADD COLUMN locked_until TIMESTAMP'))
             print("Migration: added admin_user.locked_until")
+        if 'role' not in admin_cols:
+            conn.execute(text(f"ALTER TABLE admin_user ADD COLUMN role VARCHAR(20) DEFAULT '{ROLE_MEMBER}'"))
+            conn.execute(text(f"UPDATE admin_user SET role = '{ROLE_ADMIN}' WHERE email = 'anna@writeitgreat.com'"))
+            print("Migration: added admin_user.role, set anna as admin")
+        if 'is_active_account' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN is_active_account BOOLEAN DEFAULT TRUE'))
+            print("Migration: added admin_user.is_active_account")
 
 
 # ============================================================================
