@@ -255,6 +255,60 @@ def extract_text_from_docx(file):
         return ""
 
 
+def convert_docx_to_html(file_bytes):
+    """Convert DOCX bytes to formatted HTML preserving headings, bold, italic, lists"""
+    try:
+        doc = Document(BytesIO(file_bytes))
+        html_parts = []
+        for para in doc.paragraphs:
+            style_name = (para.style.name or '').lower()
+            # Build inline runs with bold/italic
+            runs_html = ''
+            for run in para.runs:
+                text = run.text
+                if not text:
+                    continue
+                # Escape HTML
+                text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                if run.bold and run.italic:
+                    text = f'<strong><em>{text}</em></strong>'
+                elif run.bold:
+                    text = f'<strong>{text}</strong>'
+                elif run.italic:
+                    text = f'<em>{text}</em>'
+                if run.underline:
+                    text = f'<u>{text}</u>'
+                runs_html += text
+
+            if not runs_html.strip():
+                html_parts.append('<br>')
+                continue
+
+            if 'heading 1' in style_name:
+                html_parts.append(f'<h2>{runs_html}</h2>')
+            elif 'heading 2' in style_name:
+                html_parts.append(f'<h3>{runs_html}</h3>')
+            elif 'heading 3' in style_name or 'heading 4' in style_name:
+                html_parts.append(f'<h4>{runs_html}</h4>')
+            elif 'list' in style_name or 'bullet' in style_name:
+                html_parts.append(f'<li>{runs_html}</li>')
+            elif 'title' in style_name:
+                html_parts.append(f'<h1>{runs_html}</h1>')
+            elif 'subtitle' in style_name:
+                html_parts.append(f'<h3 style="color: var(--gray-500);">{runs_html}</h3>')
+            else:
+                html_parts.append(f'<p>{runs_html}</p>')
+
+        # Wrap consecutive <li> tags in <ul>
+        result = '\n'.join(html_parts)
+        import re
+        result = re.sub(r'((?:<li>.*?</li>\s*)+)', r'<ul>\1</ul>', result)
+        return result
+    except Exception as e:
+        print(f"DOCX to HTML conversion error: {e}")
+        return None
+
+
 # Scoring weights for full proposals
 FULL_WEIGHTS = {
     'marketing': 0.30,
@@ -1115,9 +1169,38 @@ def admin_proposal_detail(submission_id):
 @app.route('/admin/proposal/<submission_id>/view-proposal')
 @login_required
 def view_proposal_text(submission_id):
-    """View the original submitted proposal text"""
+    """View the original submitted proposal with formatting preserved"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
-    return render_template('admin_view_proposal.html', proposal=proposal)
+
+    formatted_html = None
+    embed_pdf = False
+    fname = (proposal.original_filename or '').lower()
+
+    if proposal.original_file and fname.endswith('.pdf'):
+        embed_pdf = True
+    elif proposal.original_file and fname.endswith('.docx'):
+        formatted_html = convert_docx_to_html(proposal.original_file)
+
+    return render_template('admin_view_proposal.html',
+                           proposal=proposal,
+                           formatted_html=formatted_html,
+                           embed_pdf=embed_pdf)
+
+
+@app.route('/admin/proposal/<submission_id>/embed-proposal')
+@login_required
+def embed_proposal_file(submission_id):
+    """Serve the original file inline for embedding (PDF viewer)"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    if not proposal.original_file or not proposal.original_filename:
+        return 'No file available', 404
+    file_buffer = BytesIO(proposal.original_file)
+    fname = proposal.original_filename.lower()
+    if fname.endswith('.pdf'):
+        mimetype = 'application/pdf'
+    else:
+        mimetype = 'application/octet-stream'
+    return send_file(file_buffer, mimetype=mimetype, download_name=proposal.original_filename)
 
 
 @app.route('/admin/proposal/<submission_id>/download-proposal')
