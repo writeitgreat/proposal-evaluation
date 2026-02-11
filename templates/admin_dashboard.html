@@ -6,13 +6,13 @@
         <h1>Proposal Dashboard</h1>
         <p>Welcome back! Here's an overview of all book proposals.</p>
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-number">{{ stats.total }}</div><div class="stat-label">Total</div></div>
-            <div class="stat-card"><div class="stat-number">{{ stats.a_tier }}</div><div class="stat-label">A-Tier</div></div>
-            <div class="stat-card"><div class="stat-number">{{ stats.b_tier }}</div><div class="stat-label">B-Tier</div></div>
-            <div class="stat-card"><div class="stat-number">{{ stats.c_tier }}</div><div class="stat-label">C-Tier</div></div>
-            <div class="stat-card"><div class="stat-number">{{ stats.d_tier }}</div><div class="stat-label">D-Tier</div></div>
-            <div class="stat-card"><div class="stat-number">{{ stats.submitted }}</div><div class="stat-label">New</div></div>
-            <div class="stat-card"><div class="stat-number">{{ stats.shopping }}</div><div class="stat-label">Shopping</div></div>
+            <a href="{{ url_for('admin_dashboard') }}" class="stat-card"><div class="stat-number">{{ stats.total }}</div><div class="stat-label">Total</div></a>
+            <a href="{{ url_for('admin_dashboard', tier='A') }}" class="stat-card"><div class="stat-number">{{ stats.a_tier }}</div><div class="stat-label">A-Tier</div></a>
+            <a href="{{ url_for('admin_dashboard', tier='B') }}" class="stat-card"><div class="stat-number">{{ stats.b_tier }}</div><div class="stat-label">B-Tier</div></a>
+            <a href="{{ url_for('admin_dashboard', tier='C') }}" class="stat-card"><div class="stat-number">{{ stats.c_tier }}</div><div class="stat-label">C-Tier</div></a>
+            <a href="{{ url_for('admin_dashboard', tier='D') }}" class="stat-card"><div class="stat-number">{{ stats.d_tier }}</div><div class="stat-label">D-Tier</div></a>
+            <a href="{{ url_for('admin_dashboard', status='submitted') }}" class="stat-card"><div class="stat-number">{{ stats.submitted }}</div><div class="stat-label">New</div></a>
+            <a href="{{ url_for('admin_dashboard', status='shopping') }}" class="stat-card"><div class="stat-number">{{ stats.shopping }}</div><div class="stat-label">Shopping</div></a>
         </div>
     </div>
 </section>

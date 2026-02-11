@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Proposal Text - {{ proposal.book_title }}{% endblock %}
+{% block content %}
+<section class="proposal-header">
+    <div class="container">
+        <h1>{{ proposal.book_title }}</h1>
+        <div class="proposal-meta">
+            <span>{{ proposal.author_name }}</span>
+            <span>{{ proposal.submission_id }}</span>
+            <span>{{ proposal.submitted_at.strftime('%B %d, %Y') if proposal.submitted_at else 'N/A' }}</span>
+        </div>
+    </div>
+</section>
+
+<div class="container" style="max-width: 900px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <a href="{{ url_for('admin_proposal_detail', submission_id=proposal.submission_id) }}" class="btn btn-outline" style="padding: 0.5rem 1rem;">&larr; Back to Evaluation</a>
+        {% if proposal.proposal_text %}
+        <a href="{{ url_for('download_proposal_text', submission_id=proposal.submission_id) }}" class="btn btn-accent" style="padding: 0.5rem 1rem;">Download as .txt</a>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom: 1rem; color: var(--primary);">Original Submitted Proposal</h3>
+        {% if proposal.proposal_text %}
+        <div style="white-space: pre-wrap; font-family: 'Inter', sans-serif; font-size: 0.9375rem; line-height: 1.8; color: var(--gray-800);">{{ proposal.proposal_text }}</div>
+        {% else %}
+        <p style="color: var(--gray-500); text-align: center; padding: 2rem;">No proposal text available for this submission.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
