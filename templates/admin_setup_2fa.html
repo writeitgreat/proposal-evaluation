@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Set Up Two-Factor Authentication - Write It Great{% endblock %}
+{% block content %}
+<div class="login-container">
+    <div class="login-card" style="max-width: 480px;">
+        <h1 style="font-size: 1.25rem;">Set Up Two-Factor Authentication</h1>
+        <p style="text-align: center; color: var(--gray-500); margin-bottom: 1.5rem; font-size: 0.875rem;">
+            2FA is required for all team accounts to protect sensitive proposal data.
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{% if category == 'success' %}flash success{% else %}login-error{% endif %}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <p style="font-size: 0.875rem; color: var(--gray-700); margin-bottom: 1rem;">
+                <strong>Step 1:</strong> Scan this QR code with your authenticator app<br>
+                <span style="font-size: 0.8125rem; color: var(--gray-500);">(Google Authenticator, Authy, 1Password, etc.)</span>
+            </p>
+            <div style="display: inline-block; padding: 12px; background: white; border: 2px solid var(--gray-200); border-radius: var(--radius);">
+                <img src="data:image/png;base64,{{ qr_code }}" alt="2FA QR Code" style="width: 200px; height: 200px;">
+            </div>
+        </div>
+
+        <details style="margin-bottom: 1.5rem;">
+            <summary style="font-size: 0.8125rem; color: var(--gray-500); cursor: pointer;">Can't scan? Enter this code manually</summary>
+            <div style="margin-top: 0.5rem; padding: 0.75rem; background: var(--gray-100); border-radius: var(--radius); text-align: center; font-family: monospace; font-size: 0.9375rem; letter-spacing: 2px; word-break: break-all;">
+                {{ totp_secret }}
+            </div>
+        </details>
+
+        <form method="POST">
+            <p style="font-size: 0.875rem; color: var(--gray-700); margin-bottom: 0.75rem;">
+                <strong>Step 2:</strong> Enter the 6-digit code from your app
+            </p>
+            <div class="form-group">
+                <input type="text" id="totp_code" name="totp_code" required
+                       placeholder="000000"
+                       pattern="[0-9]{6}" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                       style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; font-weight: 700;">
+            </div>
+            <button type="submit" class="btn btn-accent login-btn">Verify &amp; Activate 2FA</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
