@@ -11,7 +11,7 @@ import smtplib
 import traceback
 import threading
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
@@ -81,12 +81,28 @@ class AdminUser(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    password_reset_token = db.Column(db.String(100))
+    password_reset_expires = db.Column(db.DateTime)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def generate_reset_token(self):
+        self.password_reset_token = uuid.uuid4().hex
+        self.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        return self.password_reset_token
+
+    def verify_reset_token(self, token):
+        if not self.password_reset_token or not self.password_reset_expires:
+            return False
+        if self.password_reset_token != token:
+            return False
+        if datetime.utcnow() > self.password_reset_expires:
+            return False
+        return True
 
 
 class Proposal(db.Model):
@@ -1003,17 +1019,117 @@ def resend_author_email(submission_id):
     return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
 
 
-# Temporary route to reset admin password - DELETE AFTER USE
-@app.route('/reset-admin-temp/<password>')
-def reset_admin_temp(password):
-    """Temporary route to reset admin password. DELETE THIS AFTER USE."""
-    user = AdminUser.query.filter_by(email='anna@writeitgreat.com').first()
-    if not user:
-        user = AdminUser(email='anna@writeitgreat.com', name='Anna')
-        db.session.add(user)
-    user.set_password(password)
-    db.session.commit()
-    return f"Password for anna@writeitgreat.com set to: {password}. DELETE THIS ROUTE!"
+ALLOWED_EMAIL_DOMAIN = 'writeitgreat.com'
+
+
+@app.route('/admin/register', methods=['GET', 'POST'])
+def admin_register():
+    """Team registration - restricted to @writeitgreat.com emails"""
+    if current_user.is_authenticated:
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        name = request.form.get('name', '').strip()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        if not all([email, name, password, confirm]):
+            flash('All fields are required.', 'error')
+        elif not email.endswith(f'@{ALLOWED_EMAIL_DOMAIN}'):
+            flash(f'Only @{ALLOWED_EMAIL_DOMAIN} email addresses can register.', 'error')
+        elif len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+        elif password != confirm:
+            flash('Passwords do not match.', 'error')
+        elif AdminUser.query.filter_by(email=email).first():
+            flash('An account with this email already exists. Try logging in or resetting your password.', 'error')
+        else:
+            user = AdminUser(email=email, name=name, password_hash='temp')
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            login_user(user)
+            flash(f'Welcome, {name}! Your account has been created.', 'success')
+            return redirect(url_for('admin_dashboard'))
+
+    return render_template('admin_register.html')
+
+
+@app.route('/admin/forgot-password', methods=['GET', 'POST'])
+def admin_forgot_password():
+    """Request a password reset email"""
+    if current_user.is_authenticated:
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        user = AdminUser.query.filter_by(email=email).first()
+
+        # Always show success message to prevent email enumeration
+        flash('If an account exists with that email, a password reset link has been sent.', 'success')
+
+        if user:
+            token = user.generate_reset_token()
+            db.session.commit()
+
+            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            reset_url = f"{app_url}/admin/reset-password/{token}"
+
+            reset_html = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 500px; margin: 0 auto; padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h1 style="color: #2D1B69; margin-bottom: 5px;">Write It Great</h1>
+                    </div>
+                    <p>Hi {user.name},</p>
+                    <p>You requested a password reset for your Write It Great dashboard account.</p>
+                    <div style="text-align: center; margin: 25px 0;">
+                        <a href="{reset_url}" style="display: inline-block; padding: 14px 28px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Your Password</a>
+                    </div>
+                    <p style="font-size: 0.875rem; color: #666;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0;">
+                    <p style="font-size: 0.8rem; color: #999;">Write It Great &middot; <a href="https://www.writeitgreat.com" style="color: #2D1B69;">writeitgreat.com</a></p>
+                </div>
+            </body>
+            </html>
+            """
+            send_email(user.email, 'Password Reset - Write It Great Dashboard', reset_html)
+
+        return redirect(url_for('admin_forgot_password'))
+
+    return render_template('admin_forgot_password.html')
+
+
+@app.route('/admin/reset-password/<token>', methods=['GET', 'POST'])
+def admin_reset_password(token):
+    """Reset password using a valid token"""
+    if current_user.is_authenticated:
+        return redirect(url_for('admin_dashboard'))
+
+    user = AdminUser.query.filter_by(password_reset_token=token).first()
+    if not user or not user.verify_reset_token(token):
+        flash('This reset link is invalid or has expired. Please request a new one.', 'error')
+        return redirect(url_for('admin_forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+        elif password != confirm:
+            flash('Passwords do not match.', 'error')
+        else:
+            user.set_password(password)
+            user.password_reset_token = None
+            user.password_reset_expires = None
+            db.session.commit()
+            flash('Your password has been reset. Please log in.', 'success')
+            return redirect(url_for('admin_login'))
+
+    return render_template('admin_reset_password.html', token=token)
 
 
 # ============================================================================
@@ -1024,17 +1140,28 @@ def run_migrations():
     """Add new columns to existing tables if they don't exist"""
     from sqlalchemy import inspect, text
     inspector = inspect(db.engine)
-    columns = [col['name'] for col in inspector.get_columns('proposal')]
-    # Use BYTEA for PostgreSQL, BLOB for SQLite
     is_postgres = 'postgresql' in str(db.engine.url)
     blob_type = 'BYTEA' if is_postgres else 'BLOB'
+
+    # Proposal table migrations
+    proposal_cols = [col['name'] for col in inspector.get_columns('proposal')]
     with db.engine.begin() as conn:
-        if 'original_filename' not in columns:
+        if 'original_filename' not in proposal_cols:
             conn.execute(text('ALTER TABLE proposal ADD COLUMN original_filename VARCHAR(500)'))
-            print("Migration: added original_filename column")
-        if 'original_file' not in columns:
+            print("Migration: added proposal.original_filename")
+        if 'original_file' not in proposal_cols:
             conn.execute(text(f'ALTER TABLE proposal ADD COLUMN original_file {blob_type}'))
-            print("Migration: added original_file column")
+            print("Migration: added proposal.original_file")
+
+    # AdminUser table migrations
+    admin_cols = [col['name'] for col in inspector.get_columns('admin_user')]
+    with db.engine.begin() as conn:
+        if 'password_reset_token' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN password_reset_token VARCHAR(100)'))
+            print("Migration: added admin_user.password_reset_token")
+        if 'password_reset_expires' not in admin_cols:
+            conn.execute(text('ALTER TABLE admin_user ADD COLUMN password_reset_expires TIMESTAMP'))
+            print("Migration: added admin_user.password_reset_expires")
 
 
 # ============================================================================
