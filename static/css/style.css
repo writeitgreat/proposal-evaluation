@@ -317,6 +317,11 @@ h1, h2, h3 { color: var(--gray-900); }
 .view-link { color: var(--primary); text-decoration: none; font-weight: 600; white-space: nowrap; }
 .view-link:hover { text-decoration: underline; }
 
+.type-badge { font-size: 0.6875rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap; }
+.type-badge.type-full { background: #dbeafe; color: #1e40af; }
+.type-badge.type-marketing_only { background: #fef3c7; color: #92400e; }
+.type-badge.type-no_marketing { background: #f3e8ff; color: #6b21a8; }
+
 .pagination { display: flex; justify-content: center; gap: 0.5rem; padding: 2rem; }
 .pagination a { padding: 0.5rem 1rem; border: 1px solid var(--gray-300); border-radius: var(--radius); text-decoration: none; color: var(--gray-600); }
 .pagination a:hover { background: var(--gray-100); }
