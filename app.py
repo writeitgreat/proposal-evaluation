@@ -1176,6 +1176,85 @@ def resend_author_email(submission_id):
     return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
 
 
+@app.route('/admin/proposal/<submission_id>/delete', methods=['POST'])
+@login_required
+def admin_delete_proposal(submission_id):
+    """Delete a proposal"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    title = proposal.book_title
+    db.session.delete(proposal)
+    db.session.commit()
+    flash(f'Proposal "{title}" has been deleted.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/proposals/bulk-action', methods=['POST'])
+@login_required
+def admin_bulk_action():
+    """Apply bulk actions to selected proposals"""
+    action = request.form.get('bulk_action', '')
+    proposal_ids = request.form.getlist('proposal_ids')
+
+    if not proposal_ids:
+        flash('No proposals selected.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    proposals = Proposal.query.filter(Proposal.submission_id.in_(proposal_ids)).all()
+
+    if action == 'delete':
+        count = len(proposals)
+        for p in proposals:
+            db.session.delete(p)
+        db.session.commit()
+        flash(f'{count} proposal(s) deleted.', 'success')
+    elif action in [s[0] for s in STATUS_OPTIONS]:
+        count = len(proposals)
+        for p in proposals:
+            p.status = action
+        db.session.commit()
+        flash(f'{count} proposal(s) set to "{action.replace("_", " ").title()}".', 'success')
+    else:
+        flash('Invalid action.', 'error')
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/proposals/add', methods=['GET', 'POST'])
+@login_required
+def admin_add_proposal():
+    """Manually add a proposal"""
+    if request.method == 'POST':
+        author_name = request.form.get('author_name', '').strip()
+        author_email = request.form.get('author_email', '').strip()
+        book_title = request.form.get('book_title', '').strip()
+        tier = request.form.get('tier', '').strip()
+        score = request.form.get('score', '').strip()
+        status = request.form.get('status', 'submitted')
+        notes = request.form.get('notes', '').strip()
+
+        if not all([author_name, author_email, book_title]):
+            flash('Author name, email, and book title are required.', 'error')
+            return render_template('admin_add_proposal.html', status_options=STATUS_OPTIONS)
+
+        proposal = Proposal(
+            submission_id=str(uuid.uuid4())[:12],
+            author_name=author_name,
+            author_email=author_email,
+            book_title=book_title,
+            tier=tier if tier in ('A', 'B', 'C', 'D') else None,
+            overall_score=float(score) if score else None,
+            status=status,
+            notes=notes,
+            proposal_type='full'
+        )
+        db.session.add(proposal)
+        db.session.commit()
+        flash(f'Proposal "{book_title}" added successfully.', 'success')
+        return redirect(url_for('admin_proposal_detail', submission_id=proposal.submission_id))
+
+    return render_template('admin_add_proposal.html', status_options=STATUS_OPTIONS)
+
+
 ALLOWED_EMAIL_DOMAIN = 'writeitgreat.com'
 
 
