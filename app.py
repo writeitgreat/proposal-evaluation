@@ -1231,7 +1231,9 @@ def author_register():
     if current_user.is_authenticated:
         if getattr(current_user, 'is_author', False):
             return redirect(url_for('author_dashboard'))
-        return redirect(url_for('admin_dashboard'))
+        # Team member visiting author register — log them out first
+        logout_user()
+        session.pop('user_type', None)
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -1279,7 +1281,9 @@ def author_login():
     if current_user.is_authenticated:
         if getattr(current_user, 'is_author', False):
             return redirect(url_for('author_dashboard'))
-        return redirect(url_for('admin_dashboard'))
+        # Team member visiting author login — log them out first
+        logout_user()
+        session.pop('user_type', None)
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
@@ -1403,7 +1407,11 @@ def author_reset_password(token):
 def admin_login():
     """Team login with 2FA support and lockout protection"""
     if current_user.is_authenticated:
-        return redirect(url_for('admin_dashboard'))
+        if getattr(current_user, 'is_team_member', False):
+            return redirect(url_for('admin_dashboard'))
+        # Author visiting team login — log them out first
+        logout_user()
+        session.pop('user_type', None)
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()

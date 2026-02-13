@@ -1,69 +1,334 @@
 {% extends "base.html" %}
 {% block title %}{{ proposal.book_title }} - Write It Great{% endblock %}
+
+{% block extra_css %}
+{% if proposal.status == 'processing' %}
+/* Full-screen purple processing overlay */
+.processing-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999;
+    background: linear-gradient(135deg, #2D1B69, #3d2b7a);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: white;
+}
+.processing-overlay .spinner {
+    width: 60px; height: 60px;
+    border: 4px solid rgba(184, 242, 184, 0.3);
+    border-top-color: #B8F2B8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1.5rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.processing-overlay h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+.processing-overlay p { opacity: 0.8; max-width: 400px; text-align: center; }
+.processing-steps { margin-top: 2rem; text-align: left; max-width: 350px; }
+.processing-steps .step {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.5rem 0; color: rgba(255,255,255,0.5); font-size: 0.9375rem;
+}
+.processing-steps .step.active { color: #B8F2B8; font-weight: 600; }
+.processing-steps .step.done { color: rgba(255,255,255,0.8); }
+{% endif %}
+
+/* Results styles — matching the full results page */
+.results-container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+.results-card { background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(91, 75, 138, 0.15); padding: 40px; margin-bottom: 30px; }
+.results-header-inner { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0; }
+.submission-id { color: #6B6B7B; font-size: 0.9rem; }
+
+/* Score Display */
+.score-display { display: flex; justify-content: center; gap: 30px; margin: 30px 0; flex-wrap: wrap; }
+.score-box { text-align: center; padding: 25px 35px; background: #f5f5f5; border-radius: 12px; min-width: 150px; }
+.score-box.tier-a { border-top: 4px solid #10B981; }
+.score-box.tier-b { border-top: 4px solid #3B82F6; }
+.score-box.tier-c { border-top: 4px solid #F59E0B; }
+.score-box.tier-d { border-top: 4px solid #EF4444; }
+.score-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #6B6B7B; margin-bottom: 8px; }
+.score-value { font-size: 3rem; font-weight: 700; }
+.tier-a .score-value { color: #10B981; }
+.tier-b .score-value { color: #3B82F6; }
+.tier-c .score-value { color: #F59E0B; }
+.tier-d .score-value { color: #EF4444; }
+.tier-description { text-align: center; padding: 15px; background: #f5f5f5; border-radius: 8px; margin-bottom: 25px; font-weight: 500; }
+.tier-description.tier-a { color: #10B981; }
+.tier-description.tier-b { color: #3B82F6; }
+.tier-description.tier-c { color: #F59E0B; }
+.tier-description.tier-d { color: #EF4444; }
+
+/* Book Info */
+.book-info { text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0; }
+.book-info h2 { font-size: 1.5rem; color: #1E1E2E; margin-bottom: 5px; }
+.book-info .author { color: #6B6B7B; }
+.proposal-type-badge { display: inline-block; background: #2D1B69; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; margin-top: 10px; }
+
+/* Status badge for author */
+.author-status-badge { display: inline-block; background: #f0f0ff; color: #2D1B69; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; margin-top: 10px; margin-left: 8px; font-weight: 600; }
+
+/* Red Flags */
+.red-flags { background: #FEF2F2; border: 1px solid #EF4444; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+.red-flags h3 { color: #EF4444; font-size: 1rem; margin-bottom: 12px; }
+.red-flags ul { list-style: none; padding: 0; margin: 0; }
+.red-flags li { padding: 6px 0 6px 24px; position: relative; color: #991B1B; }
+.red-flags li::before { content: '\26A0'; position: absolute; left: 0; }
+
+/* Section Headers */
+.section-header { font-size: 1.2rem; color: #1E1E2E; margin: 30px 0 15px; padding-bottom: 10px; border-bottom: 2px solid #2D1B69; }
+.executive-summary { line-height: 1.8; color: #2D2D3F; font-size: 1.05rem; }
+
+/* Score Breakdown */
+.score-breakdown { margin: 20px 0; }
+.score-bar-item { margin-bottom: 18px; }
+.score-bar-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.score-bar-label { font-weight: 500; color: #2D2D3F; }
+.score-bar-value { font-weight: 600; color: #2D1B69; }
+.score-bar { height: 12px; background: #e0e0e0; border-radius: 6px; overflow: hidden; }
+.score-bar-fill { height: 100%; background: linear-gradient(90deg, #8ad98a, #B8F2B8); border-radius: 6px; transition: width 0.5s ease; }
+
+/* Strengths & Improvements Grid */
+.two-column-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin: 20px 0; }
+@media (max-width: 768px) { .two-column-grid { grid-template-columns: 1fr; } }
+.list-card { background: #f5f5f5; border-radius: 8px; padding: 20px; }
+.list-card h4 { font-size: 1rem; color: #1E1E2E; margin-bottom: 12px; }
+.list-card ul { list-style: none; padding: 0; margin: 0; }
+.list-card li { padding: 8px 0 8px 24px; position: relative; line-height: 1.5; }
+.strengths-card li::before { content: '\2713'; position: absolute; left: 0; color: #10B981; font-weight: bold; }
+.improvements-card li::before { content: '\2192'; position: absolute; left: 0; color: #F59E0B; font-weight: bold; }
+
+/* Detailed Analysis */
+.detailed-section { background: #f5f5f5; border-radius: 12px; padding: 25px; margin: 20px 0; }
+.detailed-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
+.detailed-section-header h4 { font-size: 1.1rem; color: #1E1E2E; margin: 0; }
+.section-score-badge { background: #2D1B69; color: white; padding: 5px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+.current-state { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; line-height: 1.7; }
+.analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+@media (max-width: 768px) { .analysis-grid { grid-template-columns: 1fr; } }
+.analysis-box { background: white; padding: 15px; border-radius: 8px; }
+.analysis-box h5 { font-size: 0.85rem; color: #2D1B69; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.analysis-box p { color: #2D2D3F; line-height: 1.6; font-size: 0.95rem; }
+.excellence-box { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left: 4px solid #10B981; padding: 15px; border-radius: 0 8px 8px 0; margin-bottom: 15px; }
+.excellence-box h5 { color: #10B981; font-size: 0.9rem; margin-bottom: 8px; }
+.excellence-box p { color: #166534; font-style: italic; line-height: 1.6; }
+.action-items { background: white; padding: 15px; border-radius: 8px; }
+.action-items h5 { font-size: 0.85rem; color: #2D1B69; margin-bottom: 10px; }
+.action-items ul { list-style: none; padding: 0; margin: 0; }
+.action-items li { padding: 6px 0 6px 20px; position: relative; font-size: 0.95rem; }
+.action-items li::before { content: '\2022'; position: absolute; left: 6px; color: #2D1B69; font-weight: bold; }
+
+/* Writing Examples */
+.writing-example { background: white; padding: 15px; border-radius: 8px; margin-top: 15px; }
+.writing-example h5 { font-size: 0.85rem; margin-bottom: 10px; }
+.writing-example.strong h5 { color: #10B981; }
+.writing-example.improve h5 { color: #F59E0B; }
+.writing-example blockquote { background: #f5f5f5; padding: 12px 15px; border-left: 3px solid #2D1B69; margin: 0; font-style: italic; color: #2D2D3F; }
+
+/* Priority Action Plan */
+.priority-action { background: white; border-radius: 8px; padding: 18px; margin-bottom: 15px; border-left: 4px solid #2D1B69; }
+.priority-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.priority-number { width: 30px; height: 30px; background: #2D1B69; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; }
+.priority-action h5 { margin: 0; font-size: 1rem; color: #1E1E2E; }
+.priority-meta { margin-left: 42px; font-size: 0.9rem; }
+.priority-timeline { color: #2D1B69; font-weight: 600; }
+.priority-impact { color: #6B6B7B; }
+
+/* Path to A-Tier */
+.path-to-a { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #10B981; border-radius: 8px; padding: 20px; margin: 20px 0; }
+.path-to-a h4 { color: #10B981; margin-bottom: 12px; }
+.path-to-a p { color: #166534; line-height: 1.7; }
+
+/* Advance Estimate */
+.advance-est { background: linear-gradient(135deg, #2D1B69, #3d2b7a); color: white; border-radius: 8px; padding: 25px; margin: 20px 0; }
+.advance-est h4 { color: #B8F2B8; margin-bottom: 15px; font-size: 1.1rem; }
+.estimate-range { font-size: 1.8rem; font-weight: 700; margin: 10px 0; }
+.estimate-confidence { opacity: 0.9; margin-bottom: 10px; }
+.estimate-reasoning { opacity: 0.9; line-height: 1.6; font-size: 0.95rem; }
+.not-viable { background: #f5f5f5; color: #2D2D3F; }
+.not-viable h4 { color: #2D1B69; }
+
+/* Next Steps */
+.next-steps-list ol { padding-left: 20px; }
+.next-steps-list li { padding: 8px 0; line-height: 1.6; }
+
+/* Download & CTA */
+.download-section { text-align: center; padding: 30px; background: #f5f5f5; border-radius: 12px; margin: 30px 0; }
+.download-section h3 { margin-bottom: 10px; }
+.download-section p { color: #6B6B7B; margin-bottom: 20px; }
+.btn-download { background: #1E1E2E; color: white; border: none; padding: 14px 28px; font-size: 1rem; font-weight: 600; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; text-decoration: none; transition: all 0.3s ease; }
+.btn-download:hover { background: #2D2D3F; }
+.cta-section { text-align: center; padding: 35px; background: linear-gradient(135deg, #2D1B69, #3d2b7a); border-radius: 12px; color: white; margin: 30px 0; }
+.cta-section h3 { font-size: 1.4rem; margin-bottom: 10px; }
+.cta-section p { opacity: 0.9; margin-bottom: 20px; }
+.cta-buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+.cta-buttons .btn-cta { padding: 12px 24px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: all 0.3s ease; }
+.cta-buttons .btn-cta-primary { background: #B8F2B8; color: #2D1B69; font-weight: 700; }
+.cta-buttons .btn-cta-secondary { background: transparent; color: white; border: 2px solid white; }
+.cta-buttons .btn-cta:hover { transform: translateY(-2px); }
+.back-link { display: inline-block; margin-bottom: 1.5rem; color: #2D1B69; text-decoration: none; font-weight: 600; }
+.back-link:hover { text-decoration: underline; }
+{% endblock %}
+
 {% block content %}
-<section class="proposal-header">
-    <div class="container">
-        <h1>{{ proposal.book_title }}</h1>
-        <div class="proposal-meta">
-            <span>{{ proposal.author_name }}</span>
-            <span>{{ proposal.submitted_at.strftime('%B %d, %Y') if proposal.submitted_at else 'N/A' }}</span>
-            {% if proposal.tier %}<span class="tier-badge tier-{{ proposal.tier|lower }}">{{ proposal.tier }}-Tier</span>{% endif %}
-            <span class="status-badge {{ proposal.status }}">{{ friendly_status }}</span>
+
+{% if proposal.status == 'processing' %}
+{# ========== FULL-SCREEN PURPLE PROCESSING OVERLAY ========== #}
+<div class="processing-overlay" id="processing-overlay">
+    <div class="spinner"></div>
+    <h2>Evaluating Your Proposal...</h2>
+    <p>Our AI is carefully analyzing your book proposal. This typically takes 30-60 seconds.</p>
+    <div class="processing-steps">
+        <div class="step done">&#10003; Document uploaded successfully</div>
+        <div class="step done">&#10003; Text extracted from document</div>
+        <div class="step active" id="step-eval">&#9679; Running comprehensive AI evaluation...</div>
+        <div class="step" id="step-report">&#9675; Generating detailed report</div>
+        <div class="step" id="step-email">&#9675; Sending email notification</div>
+    </div>
+</div>
+
+{% elif proposal.status == 'error' %}
+<div class="results-container">
+    <a href="{{ url_for('author_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+    <div class="results-card" style="text-align: center; padding: 3rem;">
+        <h2 style="color: #EF4444; margin-bottom: 1rem;">Evaluation Error</h2>
+        <p style="color: #6B6B7B; margin-bottom: 1.5rem;">We encountered an issue while evaluating your proposal. Please try submitting again.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Try Again</a>
+    </div>
+</div>
+
+{% elif not evaluation %}
+<div class="results-container">
+    <a href="{{ url_for('author_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+    <div class="results-card" style="text-align: center; padding: 3rem;">
+        <h2 style="color: var(--primary);">Evaluation Pending</h2>
+        <p style="color: #6B6B7B; margin-top: 1rem;">Your proposal is being reviewed. Check back soon for your results.</p>
+    </div>
+</div>
+
+{% else %}
+{# ========== FULL EVALUATION REPORT ========== #}
+{% set tier = proposal.tier or 'C' %}
+{% set tier_lower = tier|lower %}
+{% set total_score = evaluation.get('total_score', evaluation.get('overall_score', proposal.overall_score or 0)) %}
+{% set exec_summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'Your proposal has been evaluated.') %}
+{% set tier_desc = evaluation.get('tierDescription', '') %}
+{% set scores = evaluation.get('scores', {}) %}
+{% set detailed = evaluation.get('detailedAnalysis', {}) %}
+{% set red_flags = evaluation.get('redFlags', []) or evaluation.get('red_flags', []) %}
+{% set strengths = evaluation.get('strengths', []) %}
+{% set improvements = evaluation.get('improvements', []) %}
+{% set priority_plan = evaluation.get('priorityActionPlan', []) %}
+{% set path_a = evaluation.get('pathToATier', '') %}
+{% set adv_est = evaluation.get('advanceEstimate', {}) %}
+{% set next_steps = evaluation.get('recommendedNextSteps', []) or evaluation.get('next_steps', []) %}
+{% set old_categories = evaluation.get('categories', {}) %}
+
+<div class="results-container">
+    <a href="{{ url_for('author_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+
+    <div class="results-card">
+        <!-- Header -->
+        <div class="results-header-inner">
+            <h1>Evaluation Complete</h1>
+            <p class="submission-id">Submission ID: {{ proposal.submission_id }}</p>
         </div>
-    </div>
-</section>
 
-<div class="container" style="max-width: 900px;">
-    <div style="margin-bottom: 1.5rem;">
-        <a href="{{ url_for('author_dashboard') }}" class="btn btn-outline" style="padding: 0.5rem 1rem;">&larr; Back to Dashboard</a>
-    </div>
+        <!-- Score Display -->
+        <div class="score-display">
+            <div class="score-box tier-{{ tier_lower }}">
+                <div class="score-label">Tier</div>
+                <div class="score-value">{{ tier }}</div>
+            </div>
+            <div class="score-box" style="border-top: 4px solid #2D1B69;">
+                <div class="score-label">Overall Score</div>
+                <div class="score-value" style="color: #2D1B69;">{{ total_score|round|int }}</div>
+            </div>
+        </div>
 
-    {% if proposal.status == 'processing' %}
-    <div class="card" style="text-align: center; padding: 3rem;">
-        <h3>Evaluation In Progress</h3>
-        <p style="color: var(--gray-600); margin-top: 1rem;">Our AI is currently evaluating your proposal. This page will update automatically when complete.</p>
-        <script>setTimeout(function(){ window.location.reload(); }, 5000);</script>
-    </div>
+        {% if tier_desc %}
+        <div class="tier-description tier-{{ tier_lower }}">{{ tier_desc }}</div>
+        {% endif %}
 
-    {% elif not evaluation %}
-    <div class="card" style="text-align: center; padding: 3rem;">
-        <h3>Evaluation Pending</h3>
-        <p style="color: var(--gray-600); margin-top: 1rem;">Your proposal is being reviewed. Check back soon for your results.</p>
-    </div>
+        <!-- Book Info -->
+        <div class="book-info">
+            <h2>{{ proposal.book_title }}</h2>
+            <p class="author">by {{ proposal.author_name }}</p>
+            <span class="proposal-type-badge">{{ (proposal.proposal_type or 'full')|replace('_', ' ')|title }} Evaluation</span>
+            <span class="author-status-badge">{{ friendly_status }}</span>
+        </div>
 
-    {% else %}
-    {# Set up variables #}
-    {% set total_score = evaluation.get('total_score', evaluation.get('overall_score', proposal.overall_score or 0)) %}
-    {% set exec_summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'No summary available.') %}
-    {% set tier_desc = evaluation.get('tierDescription', '') %}
-    {% set scores = evaluation.get('scores', {}) %}
-    {% set strengths = evaluation.get('strengths', []) %}
-    {% set improvements = evaluation.get('improvements', []) %}
-    {% set priority_plan = evaluation.get('priorityActionPlan', []) %}
-    {% set adv_est = evaluation.get('advanceEstimate', {}) %}
-    {% set next_steps = evaluation.get('recommendedNextSteps', []) or evaluation.get('next_steps', []) %}
+        <!-- Red Flags -->
+        {% if red_flags and red_flags|length > 0 %}
+        <div class="red-flags">
+            <h3>Red Flags Detected</h3>
+            <ul>
+                {% for flag in red_flags %}
+                <li>{{ flag|replace('_', ' ')|title }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
-    <div class="card">
-        <h3>Evaluation Summary</h3>
-        <p><strong>Overall Score:</strong> {% if proposal.overall_score is not none %}{{ proposal.overall_score|round|int }}/100{% else %}N/A{% endif %}</p>
-        {% if tier_desc %}<p style="color: var(--gray-500); font-size: 0.875rem;">{{ tier_desc }}</p>{% endif %}
-        <p style="margin-top: 1rem;">{{ exec_summary }}</p>
+        <!-- Executive Summary -->
+        <h3 class="section-header">Executive Summary</h3>
+        <p class="executive-summary">{{ exec_summary }}</p>
 
-        {% if adv_est and adv_est.get('viable', false) and adv_est.get('highRange', 0)|float > 0 %}
-        <div style="margin-top: 1rem; padding: 1rem; background: var(--gold-light); border-radius: var(--radius);">
-            <strong>Estimated Advance Range:</strong>
-            ${{ "{:,.0f}".format(adv_est.get('lowRange', 0)|float) }} - ${{ "{:,.0f}".format(adv_est.get('highRange', 0)|float) }}
-            {% if adv_est.get('reasoning') %}
-            <p style="font-size: 0.875rem; margin-top: 0.5rem;">{{ adv_est.get('reasoning', '') }}</p>
+        <!-- Score Breakdown -->
+        {% if scores %}
+        <h3 class="section-header">Score Breakdown</h3>
+        <div class="score-breakdown">
+            {% set category_labels = [
+                ('marketing', 'Marketing & Platform'),
+                ('overview', 'Overview & Concept'),
+                ('credentials', 'Author Credentials'),
+                ('comps', 'Comparative Titles'),
+                ('writing', 'Sample Writing'),
+                ('outline', 'Book Outline'),
+                ('completeness', 'Completeness')
+            ] %}
+            {% for key, label in category_labels %}
+            {% set score_data = scores.get(key, {}) %}
+            {% set score = score_data.get('score', 0) if score_data is mapping else (score_data or 0) %}
+            <div class="score-bar-item">
+                <div class="score-bar-header">
+                    <span class="score-bar-label">{{ label }}</span>
+                    <span class="score-bar-value">{{ score|int }}/100</span>
+                </div>
+                <div class="score-bar">
+                    <div class="score-bar-fill" style="width: {{ score|int }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Strengths & Improvements -->
+        {% if strengths or improvements %}
+        <div class="two-column-grid">
+            {% if strengths %}
+            <div class="list-card strengths-card">
+                <h4>Top Strengths</h4>
+                <ul>
+                    {% for s in strengths %}
+                    <li>{{ s }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% if improvements %}
+            <div class="list-card improvements-card">
+                <h4>Key Improvements</h4>
+                <ul>
+                    {% for imp in improvements %}
+                    <li>{{ imp }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
             {% endif %}
         </div>
         {% endif %}
-    </div>
 
-    <div class="card" style="margin-top: 1rem;">
-        <h3>Score Breakdown</h3>
-        {% if scores %}
-        {% set category_labels = [
+        <!-- Detailed Section Analysis -->
+        {% if detailed %}
+        <h3 class="section-header">Detailed Section Analysis</h3>
+        {% set analysis_categories = [
             ('marketing', 'Marketing & Platform'),
             ('overview', 'Overview & Concept'),
             ('credentials', 'Author Credentials'),
@@ -72,62 +337,197 @@
             ('outline', 'Book Outline'),
             ('completeness', 'Completeness')
         ] %}
-        {% for key, label in category_labels %}
+        {% for key, label in analysis_categories %}
+        {% set analysis = detailed.get(key, {}) %}
         {% set score_data = scores.get(key, {}) %}
         {% set score = score_data.get('score', 0) if score_data is mapping else (score_data or 0) %}
-        <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--gray-200);">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <strong>{{ label }}</strong>
-                <span class="{% if score|float >= 70 %}score-high{% elif score|float >= 50 %}score-mid{% else %}score-low{% endif %}">{{ score|int }}/100</span>
+        {% if analysis %}
+        <div class="detailed-section">
+            <div class="detailed-section-header">
+                <h4>{{ label }}</h4>
+                <span class="section-score-badge">{{ score|int }}/100</span>
             </div>
-            <div style="height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden;">
-                <div style="height: 100%; width: {{ score|int }}%; background: var(--primary); border-radius: 3px;"></div>
+
+            {% if analysis.get('currentState') %}
+            <div class="current-state">
+                <strong>Current State:</strong> {{ analysis.currentState }}
             </div>
+            {% endif %}
+
+            <div class="analysis-grid">
+                {% if analysis.get('strengths') %}
+                <div class="analysis-box">
+                    <h5>Strengths</h5>
+                    <p>{{ analysis.strengths }}</p>
+                </div>
+                {% endif %}
+                {% if analysis.get('gaps') %}
+                <div class="analysis-box">
+                    <h5>Areas for Improvement</h5>
+                    <p>{{ analysis.gaps }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if analysis.get('exampleOfExcellence') and analysis.exampleOfExcellence != 'N/A' %}
+            <div class="excellence-box">
+                <h5>What A-Tier Looks Like</h5>
+                <p>{{ analysis.exampleOfExcellence }}</p>
+            </div>
+            {% endif %}
+
+            {% if analysis.get('actionItems') and analysis.actionItems|length > 0 %}
+            <div class="action-items">
+                <h5>Action Items</h5>
+                <ul>
+                    {% for item in analysis.actionItems %}
+                    <li>{{ item }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if key == 'writing' and analysis.get('writingExamples') %}
+            {% set we = analysis.writingExamples %}
+            {% if we.get('strongPassage') %}
+            <div class="writing-example strong">
+                <h5>Strong Passage from Your Proposal</h5>
+                <blockquote>{{ we.strongPassage }}</blockquote>
+            </div>
+            {% endif %}
+            {% if we.get('improvementExample') %}
+            <div class="writing-example improve">
+                <h5>Passage to Improve</h5>
+                <blockquote>{{ we.improvementExample }}</blockquote>
+            </div>
+            {% endif %}
+            {% endif %}
         </div>
+        {% endif %}
         {% endfor %}
         {% endif %}
-    </div>
 
-    {% if strengths %}
-    <div class="card" style="margin-top: 1rem;">
-        <h3>Top Strengths</h3>
-        <ul>{% for item in strengths %}<li>{{ item }}</li>{% endfor %}</ul>
-    </div>
-    {% endif %}
-
-    {% if improvements %}
-    <div class="card" style="margin-top: 1rem;">
-        <h3>Key Improvements Needed</h3>
-        <ul>{% for item in improvements %}<li>{{ item }}</li>{% endfor %}</ul>
-    </div>
-    {% endif %}
-
-    {% if priority_plan and priority_plan|length > 0 %}
-    <div class="card" style="margin-top: 1rem;">
-        <h3>Priority Action Plan</h3>
+        <!-- Priority Action Plan -->
+        {% if priority_plan and priority_plan|length > 0 %}
+        <h3 class="section-header">Priority Action Plan</h3>
         {% for action in priority_plan %}
-        <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: var(--gray-100); border-left: 3px solid var(--primary); border-radius: 0 var(--radius) var(--radius) 0;">
-            <strong style="color: var(--primary);">#{{ action.get('priority', loop.index) }}: {{ action.get('action', '') }}</strong>
-            <div style="font-size: 0.8125rem; color: var(--gray-500); margin-top: 0.25rem;">
-                {{ action.get('timeline', '') }}{% if action.get('impact') %} &mdash; {{ action.impact }}{% endif %}
+        <div class="priority-action">
+            <div class="priority-header">
+                <span class="priority-number">{{ action.get('priority', loop.index) }}</span>
+                <h5>{{ action.get('action', '') }}</h5>
+            </div>
+            <div class="priority-meta">
+                <span class="priority-timeline">{{ action.get('timeline', '') }}</span>
+                {% if action.get('impact') %} &mdash; <span class="priority-impact">{{ action.impact }}</span>{% endif %}
             </div>
         </div>
         {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if next_steps %}
-    <div class="card" style="margin-top: 1rem;">
-        <h3>Recommended Next Steps</h3>
-        <ol>{% for item in next_steps %}<li>{{ item }}</li>{% endfor %}</ol>
-    </div>
-    {% endif %}
-
-    <div style="text-align: center; margin-top: 1.5rem;">
-        {% if proposal.evaluation_json %}
-        <a href="{{ url_for('download_pdf', submission_id=proposal.submission_id) }}" class="btn btn-gold">Download PDF Report</a>
         {% endif %}
+
+        <!-- Path to A-Tier -->
+        {% if path_a %}
+        <div class="path-to-a">
+            <h4>Your Path to A-Tier</h4>
+            <p>{{ path_a }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Advance Estimate -->
+        {% if adv_est and adv_est.get('reasoning') %}
+        <div class="advance-est {% if not adv_est.get('viable', true) %}not-viable{% endif %}">
+            <h4>Advance Estimate</h4>
+            {% if adv_est.get('viable', true) %}
+            <div class="estimate-range">${{ "{:,}".format(adv_est.get('lowRange', 0)|int) }} - ${{ "{:,}".format(adv_est.get('highRange', 0)|int) }}</div>
+            <div class="estimate-confidence"><strong>Confidence:</strong> {{ adv_est.get('confidence', 'N/A') }}</div>
+            {% else %}
+            <p><strong>Current Status:</strong> Not yet viable for traditional publishing advance</p>
+            {% endif %}
+            <p class="estimate-reasoning">{{ adv_est.get('reasoning', '') }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Recommended Next Steps -->
+        {% if next_steps %}
+        <h3 class="section-header">Recommended Next Steps</h3>
+        <div class="next-steps-list">
+            <ol>
+                {% for step in next_steps %}
+                <li>{{ step }}</li>
+                {% endfor %}
+            </ol>
+        </div>
+        {% endif %}
+
+        <!-- Download Section -->
+        <div class="download-section">
+            <h3>Download Your Full Report</h3>
+            <p>Get the complete PDF report with all detailed feedback</p>
+            <a href="{{ url_for('download_pdf', submission_id=proposal.submission_id) }}" class="btn-download">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7,10 12,15 17,10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download PDF Report
+            </a>
+        </div>
+
+        <!-- CTA Section -->
+        <div class="cta-section">
+            <h3>Need Help Improving Your Proposal?</h3>
+            <p>Our expert ghostwriters can help you create a publisher-ready proposal.</p>
+            <div class="cta-buttons">
+                <a href="https://www.writeitgreat.com/services" class="btn-cta btn-cta-primary">Explore Our Services</a>
+                <a href="mailto:hello@writeitgreat.com" class="btn-cta btn-cta-secondary">Schedule a Consultation</a>
+            </div>
+        </div>
     </div>
-    {% endif %}
 </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if proposal.status == 'processing' %}
+<script>
+(function() {
+    var pollInterval = 3000;
+    var statusUrl = "{{ url_for('check_status', submission_id=proposal.submission_id) }}";
+    var stepEval = document.getElementById('step-eval');
+    var stepReport = document.getElementById('step-report');
+    var stepEmail = document.getElementById('step-email');
+
+    // Animate steps forward after a delay to give visual progress
+    setTimeout(function() {
+        stepEval.className = 'step done';
+        stepEval.innerHTML = '&#10003; AI evaluation complete';
+        stepReport.className = 'step active';
+        stepReport.innerHTML = '&#9679; Generating detailed report...';
+    }, 12000);
+
+    setTimeout(function() {
+        stepReport.className = 'step done';
+        stepReport.innerHTML = '&#10003; Report generated';
+        stepEmail.className = 'step active';
+        stepEmail.innerHTML = '&#9679; Sending email notification...';
+    }, 20000);
+
+    function checkStatus() {
+        fetch(statusUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ready) {
+                    window.location.reload();
+                } else {
+                    setTimeout(checkStatus, pollInterval);
+                }
+            })
+            .catch(function() {
+                setTimeout(checkStatus, pollInterval);
+            });
+    }
+
+    setTimeout(checkStatus, pollInterval);
+})();
+</script>
+{% endif %}
 {% endblock %}
