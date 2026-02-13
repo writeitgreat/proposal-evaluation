@@ -53,10 +53,8 @@
         <p>&copy; {{ now().year if now is defined else '2026' }} Write It Great. All rights reserved.</p>
         <p><a href="https://writeitgreat.com">writeitgreat.com</a></p>
         <div class="footer-links">
-            {% if not current_user.is_authenticated %}
             <a href="{{ url_for('author_login') }}">Author Login</a>
             <a href="{{ url_for('admin_login') }}">Team Login</a>
-            {% endif %}
         </div>
     </footer>
 
