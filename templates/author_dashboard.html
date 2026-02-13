@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}My Proposals - Write It Great{% endblock %}
+{% block content %}
+<section class="dashboard-header">
+    <div class="container">
+        <h1>My Proposals</h1>
+        <p>Welcome back, {{ current_user.name }}! Here are your submitted book proposals.</p>
+    </div>
+</section>
+
+<div class="container">
+    {% if proposals %}
+    <div style="display: grid; gap: 1rem;">
+        {% for p in proposals %}
+        <a href="{{ url_for('author_proposal_detail', submission_id=p.submission_id) }}" class="card" style="text-decoration: none; color: inherit; display: block; transition: box-shadow 0.2s;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                <div style="flex: 1; min-width: 200px;">
+                    <h3 style="margin: 0; color: var(--primary);">{{ p.book_title }}</h3>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--gray-500);">
+                        Submitted {{ p.submitted_at.strftime('%B %d, %Y') if p.submitted_at else 'N/A' }}
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    {% if p.tier %}
+                    <span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span>
+                    {% endif %}
+                    {% if p.overall_score is not none %}
+                    <span style="font-weight: 700; color: var(--primary);">{{ p.overall_score|round|int }}/100</span>
+                    {% endif %}
+                    {% set friendly = status_labels.get(p.status, p.status) %}
+                    <span class="status-badge {{ p.status }}">{{ friendly }}</span>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('index') }}" class="btn btn-accent">Submit New Proposal</a>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No proposals yet</h3>
+        <p>You haven't submitted any proposals yet. Get started by submitting your first book proposal!</p>
+        <a href="{{ url_for('index') }}" class="btn btn-accent" style="margin-top: 1rem;">Submit Your First Proposal</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

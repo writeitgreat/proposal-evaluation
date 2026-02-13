@@ -44,7 +44,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Initialize extensions
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
-login_manager.login_view = 'admin_login'
+login_manager.login_view = 'author_login'
 login_manager.login_message = None  # Disable "Please log in" message
 
 # OpenAI client
@@ -73,6 +73,30 @@ STATUS_OPTIONS = [
     ('declined', 'Declined'),
     ('on_hold', 'On Hold'),
 ]
+
+# Friendly status labels for authors (internal → public-facing)
+AUTHOR_STATUS_LABELS = {
+    'submitted': 'Submitted',
+    'processing': 'Being Evaluated',
+    'read': 'Under Review',
+    'author_call_scheduled': 'Call Scheduled',
+    'author_call_completed': 'Call Completed',
+    'contract_sent': 'Contract Sent',
+    'contract_signed': 'Contract Signed',
+    'shopping': 'Being Presented to Publishers',
+    'publisher_interest': 'Publisher Interest',
+    'offer_received': 'Offer Received',
+    'deal_closed': 'Deal Closed',
+    'declined': 'Declined',
+    'on_hold': 'On Hold',
+    'error': 'Being Evaluated',
+}
+
+# Statuses that trigger email to the author
+AUTHOR_EMAIL_MILESTONES = {
+    'author_call_scheduled', 'contract_sent', 'shopping',
+    'publisher_interest', 'offer_received', 'declined',
+}
 
 # ============================================================================
 # DATABASE MODELS
@@ -149,6 +173,10 @@ class AdminUser(UserMixin, db.Model):
         return pyotp.totp.TOTP(self.totp_secret).provisioning_uri(
             name=self.email, issuer_name='Write It Great')
 
+    # Markers to distinguish from Author in user loader
+    is_author = False
+    is_team_member = True
+
     def verify_totp(self, code):
         if not self.totp_secret:
             return False
@@ -160,12 +188,55 @@ class AdminUser(UserMixin, db.Model):
         return totp.verify(code, valid_window=2)
 
 
+class Author(UserMixin, db.Model):
+    """Author account for the public portal"""
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(200), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    password_reset_token = db.Column(db.String(100))
+    password_reset_expires = db.Column(db.DateTime)
+
+    # Marker to distinguish from AdminUser in the user loader
+    is_author = True
+    is_team_member = False
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def generate_reset_token(self):
+        self.password_reset_token = uuid.uuid4().hex
+        self.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        return self.password_reset_token
+
+    def verify_reset_token(self, token):
+        if not self.password_reset_token or not self.password_reset_expires:
+            return False
+        if self.password_reset_token != token:
+            return False
+        if datetime.utcnow() > self.password_reset_expires:
+            return False
+        return True
+
+    # These properties keep templates simple
+    @property
+    def is_admin(self):
+        return False
+
+    proposals = db.relationship('Proposal', backref='author', lazy='dynamic')
+
+
 class Proposal(db.Model):
     """Book proposal submission model"""
     id = db.Column(db.Integer, primary_key=True)
     submission_id = db.Column(db.String(50), unique=True, nullable=False)
-    
+
     # Author info
+    author_id = db.Column(db.Integer, db.ForeignKey('author.id'))
     author_name = db.Column(db.String(200), nullable=False)
     author_email = db.Column(db.String(200), nullable=False)
     book_title = db.Column(db.String(500), nullable=False)
@@ -214,10 +285,16 @@ class ProposalNote(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    user = AdminUser.query.get(int(user_id))
-    if user and not user.is_active_account:
-        return None  # Deactivated accounts can't access anything
-    return user
+    """Load user from session — checks user_type to pick the right model"""
+    from flask import session as flask_session
+    user_type = flask_session.get('user_type', 'admin')
+    if user_type == 'author':
+        return Author.query.get(int(user_id))
+    else:
+        user = AdminUser.query.get(int(user_id))
+        if user and not user.is_active_account:
+            return None
+        return user
 
 
 from functools import wraps
@@ -230,6 +307,29 @@ def admin_required(f):
         if not current_user.is_admin:
             flash('You need admin privileges to access this page.', 'error')
             return redirect(url_for('admin_dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def team_required(f):
+    """Decorator: requires login as a team member (AdminUser)"""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not getattr(current_user, 'is_team_member', False):
+            flash('Team access required.', 'error')
+            return redirect(url_for('author_dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def author_login_required(f):
+    """Decorator: requires login as an author"""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not getattr(current_user, 'is_author', False):
+            return redirect(url_for('author_login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -930,13 +1030,74 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 pass
 
 
+def send_author_milestone_email(proposal, new_status):
+    """Send email to author when their proposal reaches a major milestone"""
+    if new_status not in AUTHOR_EMAIL_MILESTONES:
+        return False
+
+    friendly_status = AUTHOR_STATUS_LABELS.get(new_status, new_status)
+    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+
+    # Custom message per milestone
+    messages = {
+        'author_call_scheduled': 'We would love to schedule a call to discuss your proposal in more detail. A team member will reach out shortly with available times.',
+        'contract_sent': 'We are excited to move forward! A contract has been sent for your review. Please check your email for the details.',
+        'shopping': 'Great news! Your proposal is now being presented to publishers. We will keep you updated on any interest.',
+        'publisher_interest': 'Exciting development! One or more publishers have expressed interest in your book. We will be in touch with more details soon.',
+        'offer_received': 'Wonderful news! We have received an offer for your book. A team member will contact you to discuss the details.',
+        'declined': 'After careful consideration, we have decided not to move forward with your proposal at this time. We wish you the best in your publishing journey.',
+    }
+
+    milestone_msg = messages.get(new_status, f'Your proposal status has been updated to: {friendly_status}.')
+
+    subject = f"Update on Your Proposal - {proposal.book_title}"
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="color: #2D1B69; margin-bottom: 5px;">Write It Great</h1>
+                <p style="color: #666; font-style: italic;">Elite Ghostwriting &amp; Publishing Services</p>
+            </div>
+
+            <p>Dear {proposal.author_name},</p>
+
+            <p>We have an update regarding your book proposal for <strong>"{proposal.book_title}"</strong>.</p>
+
+            <div style="background: #f8f6f9; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                <div style="font-size: 18px; font-weight: bold; color: #2D1B69;">{friendly_status}</div>
+            </div>
+
+            <p>{milestone_msg}</p>
+
+            <div style="text-align: center; margin: 25px 0;">
+                <a href="{app_url}/author/dashboard" style="display: inline-block; padding: 14px 28px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">View Your Dashboard</a>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #eee; margin: 25px 0;">
+
+            <p>Best regards,<br><strong>The Write It Great Team</strong><br><a href="https://www.writeitgreat.com" style="color: #2D1B69;">www.writeitgreat.com</a></p>
+        </div>
+    </body>
+    </html>
+    """
+
+    try:
+        return send_email(proposal.author_email, subject, html_content)
+    except Exception as e:
+        print(f"Milestone email error: {e}")
+        return False
+
+
 # ============================================================================
 # PUBLIC ROUTES
 # ============================================================================
 
 @app.route('/')
 def index():
-    """Main submission form"""
+    """Main submission form — requires author login"""
+    if not current_user.is_authenticated or not getattr(current_user, 'is_author', False):
+        return redirect(url_for('author_login'))
     return render_template('index.html')
 
 
@@ -944,8 +1105,16 @@ def index():
 def api_evaluate():
     """Handle proposal submission and evaluation"""
     try:
-        author_name = request.form.get('author_name', '').strip()
-        author_email = request.form.get('author_email', '').strip()
+        # Use logged-in author's info if available, fall back to form data
+        if current_user.is_authenticated and getattr(current_user, 'is_author', False):
+            author_name = current_user.name
+            author_email = current_user.email
+            logged_in_author_id = current_user.id
+        else:
+            author_name = request.form.get('author_name', '').strip()
+            author_email = request.form.get('author_email', '').strip()
+            logged_in_author_id = None
+
         book_title = request.form.get('book_title', '').strip()
         proposal_type = request.form.get('proposal_type', 'full')
 
@@ -976,6 +1145,7 @@ def api_evaluate():
         # Save proposal immediately with 'processing' status
         proposal = Proposal(
             submission_id=generate_submission_id(),
+            author_id=logged_in_author_id,
             author_name=author_name,
             author_email=author_email,
             book_title=book_title,
@@ -1052,6 +1222,180 @@ def download_pdf(submission_id):
 
 
 # ============================================================================
+# AUTHOR PORTAL ROUTES
+# ============================================================================
+
+@app.route('/author/register', methods=['GET', 'POST'])
+def author_register():
+    """Author registration"""
+    if current_user.is_authenticated:
+        if getattr(current_user, 'is_author', False):
+            return redirect(url_for('author_dashboard'))
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        if not all([name, email, password]):
+            flash('All fields are required.', 'error')
+            return render_template('author_register.html')
+
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('author_register.html')
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('author_register.html')
+
+        existing = Author.query.filter_by(email=email).first()
+        if existing:
+            flash('An account with this email already exists. Please log in.', 'error')
+            return redirect(url_for('author_login'))
+
+        author = Author(email=email, name=name)
+        author.set_password(password)
+        db.session.add(author)
+        db.session.commit()
+
+        # Link any existing proposals submitted with this email
+        Proposal.query.filter_by(author_email=email, author_id=None).update({'author_id': author.id})
+        db.session.commit()
+
+        session['user_type'] = 'author'
+        login_user(author)
+        flash(f'Welcome, {name}! Your account has been created.', 'success')
+        return redirect(url_for('author_dashboard'))
+
+    return render_template('author_register.html')
+
+
+@app.route('/author/login', methods=['GET', 'POST'])
+def author_login():
+    """Author login"""
+    if current_user.is_authenticated:
+        if getattr(current_user, 'is_author', False):
+            return redirect(url_for('author_dashboard'))
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+
+        author = Author.query.filter_by(email=email).first()
+        if author and author.check_password(password):
+            session['user_type'] = 'author'
+            login_user(author)
+            return redirect(url_for('author_dashboard'))
+
+        flash('Invalid email or password.', 'error')
+
+    return render_template('author_login.html')
+
+
+@app.route('/author/logout')
+@login_required
+def author_logout():
+    """Author logout"""
+    logout_user()
+    session.pop('user_type', None)
+    return redirect(url_for('author_login'))
+
+
+@app.route('/author/dashboard')
+@author_login_required
+def author_dashboard():
+    """Author dashboard showing their proposals"""
+    proposals = Proposal.query.filter_by(author_id=current_user.id).order_by(Proposal.submitted_at.desc()).all()
+    return render_template('author_dashboard.html',
+                         proposals=proposals,
+                         status_labels=AUTHOR_STATUS_LABELS)
+
+
+@app.route('/author/proposal/<submission_id>')
+@author_login_required
+def author_proposal_detail(submission_id):
+    """Author view of a specific proposal"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id, author_id=current_user.id).first_or_404()
+    evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+    if evaluation:
+        compute_advance_estimate(evaluation)
+    friendly_status = AUTHOR_STATUS_LABELS.get(proposal.status, proposal.status)
+    return render_template('author_proposal.html',
+                         proposal=proposal,
+                         evaluation=evaluation,
+                         friendly_status=friendly_status)
+
+
+@app.route('/author/forgot-password', methods=['GET', 'POST'])
+def author_forgot_password():
+    """Author forgot password — sends reset link"""
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        author = Author.query.filter_by(email=email).first()
+        if author:
+            token = author.generate_reset_token()
+            db.session.commit()
+
+            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            reset_link = f"{app_url}/author/reset-password/{token}"
+            html_content = f"""
+            <html><body style="font-family: Arial, sans-serif; color: #333;">
+                <div style="max-width: 500px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2D1B69;">Password Reset</h2>
+                    <p>Hi {author.name},</p>
+                    <p>Click the link below to reset your password. This link expires in 1 hour.</p>
+                    <p><a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Password</a></p>
+                    <p style="color: #999; font-size: 0.875rem;">If you didn't request this, you can safely ignore this email.</p>
+                </div>
+            </body></html>
+            """
+            try:
+                send_email(email, 'Reset Your Password - Write It Great', html_content)
+            except Exception as e:
+                print(f"Author password reset email error: {e}")
+
+        # Always show success to avoid email enumeration
+        flash('If an account exists with that email, a reset link has been sent.', 'success')
+        return redirect(url_for('author_login'))
+
+    return render_template('author_forgot_password.html')
+
+
+@app.route('/author/reset-password/<token>', methods=['GET', 'POST'])
+def author_reset_password(token):
+    """Author password reset"""
+    author = Author.query.filter_by(password_reset_token=token).first()
+    if not author or not author.verify_reset_token(token):
+        flash('Invalid or expired reset link.', 'error')
+        return redirect(url_for('author_forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('author_reset_password.html', token=token)
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('author_reset_password.html', token=token)
+
+        author.set_password(password)
+        author.password_reset_token = None
+        author.password_reset_expires = None
+        db.session.commit()
+        flash('Password reset successfully. Please log in.', 'success')
+        return redirect(url_for('author_login'))
+
+    return render_template('author_reset_password.html', token=token)
+
+
+# ============================================================================
 # ADMIN ROUTES
 # ============================================================================
 
@@ -1106,11 +1450,12 @@ def admin_login():
 def admin_logout():
     """Admin logout"""
     logout_user()
+    session.pop('user_type', None)
     return redirect(url_for('admin_login'))
 
 
 @app.route('/admin')
-@login_required
+@team_required
 def admin_dashboard():
     """Admin dashboard showing all proposals"""
     page = request.args.get('page', 1, type=int)
@@ -1154,7 +1499,7 @@ def admin_dashboard():
 
 
 @app.route('/admin/proposal/<submission_id>', methods=['GET', 'POST'])
-@login_required
+@team_required
 def admin_proposal_detail(submission_id):
     """View and edit individual proposal"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
@@ -1174,7 +1519,15 @@ def admin_proposal_detail(submission_id):
                 new_value=status_labels.get(new_status, new_status),
             )
             db.session.add(note)
+            old_status = proposal.status
             proposal.status = new_status
+
+            # Send milestone email to author if applicable
+            if new_status in AUTHOR_EMAIL_MILESTONES:
+                try:
+                    send_author_milestone_email(proposal, new_status)
+                except Exception as email_err:
+                    print(f"Milestone email error (non-fatal): {email_err}")
 
         # Add note if provided
         note_text = request.form.get('notes', '').strip()
@@ -1203,7 +1556,7 @@ def admin_proposal_detail(submission_id):
 
 
 @app.route('/admin/proposal/<submission_id>/view-proposal')
-@login_required
+@team_required
 def view_proposal_text(submission_id):
     """View the original submitted proposal with formatting preserved"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
@@ -1224,7 +1577,7 @@ def view_proposal_text(submission_id):
 
 
 @app.route('/admin/proposal/<submission_id>/embed-proposal')
-@login_required
+@team_required
 def embed_proposal_file(submission_id):
     """Serve the original file inline for embedding (PDF viewer)"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
@@ -1240,7 +1593,7 @@ def embed_proposal_file(submission_id):
 
 
 @app.route('/admin/proposal/<submission_id>/download-proposal')
-@login_required
+@team_required
 def download_proposal_text(submission_id):
     """Download the original uploaded file, or extracted text as .txt fallback"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
@@ -1280,7 +1633,7 @@ def download_proposal_text(submission_id):
 
 
 @app.route('/admin/proposal/<submission_id>/resend-author-email', methods=['POST'])
-@login_required
+@team_required
 def resend_author_email(submission_id):
     """Resend evaluation email to author"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
@@ -1296,7 +1649,7 @@ def resend_author_email(submission_id):
 
 
 @app.route('/admin/proposal/<submission_id>/delete', methods=['POST'])
-@login_required
+@team_required
 def admin_delete_proposal(submission_id):
     """Delete a proposal"""
     proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
@@ -1308,7 +1661,7 @@ def admin_delete_proposal(submission_id):
 
 
 @app.route('/admin/proposals/bulk-action', methods=['POST'])
-@login_required
+@team_required
 def admin_bulk_action():
     """Apply bulk actions to selected proposals"""
     action = request.form.get('bulk_action', '')
@@ -1339,7 +1692,7 @@ def admin_bulk_action():
 
 
 @app.route('/admin/proposals/add', methods=['GET', 'POST'])
-@login_required
+@team_required
 def admin_add_proposal():
     """Manually add a proposal"""
     if request.method == 'POST':
@@ -1529,6 +1882,7 @@ def admin_setup_2fa():
             user.totp_enabled = True
             db.session.commit()
             session.pop('setup_2fa_user_id', None)
+            session['user_type'] = 'admin'
             login_user(user)
             flash(f'Welcome, {user.name}! Two-factor authentication is now active.', 'success')
             return redirect(url_for('admin_dashboard'))
@@ -1568,6 +1922,7 @@ def admin_verify_2fa():
         code = request.form.get('totp_code', '').strip()
         if user.verify_totp(code):
             session.pop('pending_2fa_user_id', None)
+            session['user_type'] = 'admin'
             login_user(user)
             return redirect(url_for('admin_dashboard'))
         else:
@@ -1736,6 +2091,18 @@ def run_migrations():
     if not inspector.has_table('proposal_note'):
         ProposalNote.__table__.create(db.engine)
         print("Migration: created proposal_note table")
+
+    # Author table (new table for author portal)
+    if not inspector.has_table('author'):
+        Author.__table__.create(db.engine)
+        print("Migration: created author table")
+
+    # Proposal.author_id column
+    proposal_cols = [col['name'] for col in inspector.get_columns('proposal')]
+    if 'author_id' not in proposal_cols:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE proposal ADD COLUMN author_id INTEGER'))
+            print("Migration: added proposal.author_id")
 
 
 # ============================================================================
