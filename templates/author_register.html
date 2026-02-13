@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Create Account - Write It Great{% endblock %}
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <h1>Create Your Account</h1>
+        <p style="text-align: center; color: var(--gray-500); margin-bottom: 1.5rem;">Sign up to submit proposals and track their progress.</p>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{% if category == 'success' %}flash success{% else %}login-error{% endif %}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" required placeholder="Jane Smith">
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required placeholder="your@email.com">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="At least 8 characters" minlength="8">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required placeholder="••••••••" minlength="8">
+            </div>
+            <button type="submit" class="btn btn-primary login-btn">Create Account</button>
+        </form>
+        <p style="text-align: center; margin-top: 1.5rem; font-size: 0.875rem; color: var(--gray-500);">
+            Already have an account? <a href="{{ url_for('author_login') }}" style="color: var(--primary); font-weight: 600;">Log in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
