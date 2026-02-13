@@ -166,7 +166,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch('/api/evaluate', { method: 'POST', body: new FormData(form) });
             const data = await response.json();
             if (data.success && data.proposal_id) {
+                {% if current_user.is_authenticated and current_user.is_team_member %}
+                window.location.href = '/results/' + data.proposal_id;
+                {% else %}
                 window.location.href = '/author/proposal/' + data.proposal_id;
+                {% endif %}
             } else {
                 loadingOverlay.classList.add('hidden');
                 const errorDiv = document.createElement('div');

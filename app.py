@@ -1098,8 +1098,8 @@ def send_author_milestone_email(proposal, new_status):
 
 @app.route('/')
 def index():
-    """Main submission form — requires author login"""
-    if not current_user.is_authenticated or not getattr(current_user, 'is_author', False):
+    """Main submission form — requires login (author or team)"""
+    if not current_user.is_authenticated:
         return redirect(url_for('author_login'))
     return render_template('index.html')
 
