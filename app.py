@@ -94,8 +94,9 @@ AUTHOR_STATUS_LABELS = {
 
 # Statuses that trigger email to the author
 AUTHOR_EMAIL_MILESTONES = {
-    'author_call_scheduled', 'contract_sent', 'shopping',
-    'publisher_interest', 'offer_received', 'declined',
+    'author_call_scheduled', 'contract_sent', 'contract_signed',
+    'shopping', 'publisher_interest', 'offer_received',
+    'deal_closed', 'declined',
 }
 
 # ============================================================================
@@ -1042,9 +1043,11 @@ def send_author_milestone_email(proposal, new_status):
     messages = {
         'author_call_scheduled': 'We would love to schedule a call to discuss your proposal in more detail. A team member will reach out shortly with available times.',
         'contract_sent': 'We are excited to move forward! A contract has been sent for your review. Please check your email for the details.',
+        'contract_signed': 'Your contract has been signed. Welcome aboard! We are thrilled to be working with you on this project.',
         'shopping': 'Great news! Your proposal is now being presented to publishers. We will keep you updated on any interest.',
         'publisher_interest': 'Exciting development! One or more publishers have expressed interest in your book. We will be in touch with more details soon.',
         'offer_received': 'Wonderful news! We have received an offer for your book. A team member will contact you to discuss the details.',
+        'deal_closed': 'Congratulations! Your book deal has been finalized. A team member will be in touch with the next steps.',
         'declined': 'After careful consideration, we have decided not to move forward with your proposal at this time. We wish you the best in your publishing journey.',
     }
 
@@ -1095,8 +1098,8 @@ def send_author_milestone_email(proposal, new_status):
 
 @app.route('/')
 def index():
-    """Main submission form — requires author login"""
-    if not current_user.is_authenticated or not getattr(current_user, 'is_author', False):
+    """Main submission form — requires login (author or team)"""
+    if not current_user.is_authenticated:
         return redirect(url_for('author_login'))
     return render_template('index.html')
 
