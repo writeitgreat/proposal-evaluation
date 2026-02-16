@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ proposal.book_title }} - Admin{% endblock %}
 {% block content %}
+{% if proposal.is_archived %}
+<div class="archived-banner">This proposal is archived. <form method="POST" action="{{ url_for('admin_toggle_archive', submission_id=proposal.submission_id) }}" style="display:inline;"><button type="submit" class="archived-banner-btn">Restore</button></form></div>
+{% endif %}
 <section class="proposal-header">
     <div class="container">
         <h1>{{ proposal.book_title }}</h1>
@@ -235,6 +238,21 @@
                 <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem; text-align: center;">{{ "{:,}".format(proposal.proposal_text|length) }} characters of extracted text</p>
                 {% elif not proposal.original_file %}
                 <p style="color: var(--gray-500); text-align: center;">No proposal available</p>
+                {% endif %}
+            </div>
+
+            <div class="detail-section">
+                <h3>Archive</h3>
+                {% if proposal.is_archived %}
+                <p style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.75rem;">This proposal is archived.</p>
+                <form method="POST" action="{{ url_for('admin_toggle_archive', submission_id=proposal.submission_id) }}">
+                    <button type="submit" class="btn btn-outline" style="width: 100%;">Restore from Archive</button>
+                </form>
+                {% else %}
+                <p style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.75rem;">Move this proposal to the archive to keep your active list clean.</p>
+                <form method="POST" action="{{ url_for('admin_toggle_archive', submission_id=proposal.submission_id) }}">
+                    <button type="submit" class="btn btn-outline" style="width: 100%;">Archive Proposal</button>
+                </form>
                 {% endif %}
             </div>
         </div>

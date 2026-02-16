@@ -259,6 +259,7 @@ class Proposal(db.Model):
     
     # Status tracking
     status = db.Column(db.String(50), default='submitted')
+    is_archived = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
     
     # Timestamps
@@ -1473,9 +1474,16 @@ def admin_dashboard():
     tier_filter = request.args.get('tier', '')
     status_filter = request.args.get('status', '')
     search = request.args.get('search', '')
-    
+    view = request.args.get('view', '')  # '' = active, 'archive' = archived
+
     query = Proposal.query
-    
+
+    # Filter by archive status
+    if view == 'archive':
+        query = query.filter(Proposal.is_archived == True)
+    else:
+        query = query.filter(db.or_(Proposal.is_archived == False, Proposal.is_archived == None))
+
     if tier_filter:
         query = query.filter_by(tier=tier_filter)
     if status_filter:
@@ -1489,24 +1497,27 @@ def admin_dashboard():
                 Proposal.author_email.ilike(search_term)
             )
         )
-    
+
     proposals = query.order_by(Proposal.submitted_at.desc()).paginate(page=page, per_page=20)
-    
+
+    # Stats always reflect active (non-archived) proposals
+    active_query = Proposal.query.filter(db.or_(Proposal.is_archived == False, Proposal.is_archived == None))
     stats = {
-        'total': Proposal.query.count(),
-        'a_tier': Proposal.query.filter_by(tier='A').count(),
-        'b_tier': Proposal.query.filter_by(tier='B').count(),
-        'c_tier': Proposal.query.filter_by(tier='C').count(),
-        'd_tier': Proposal.query.filter_by(tier='D').count(),
-        'submitted': Proposal.query.filter_by(status='submitted').count(),
-        'shopping': Proposal.query.filter_by(status='shopping').count(),
+        'total': active_query.count(),
+        'a_tier': active_query.filter_by(tier='A').count(),
+        'b_tier': active_query.filter_by(tier='B').count(),
+        'c_tier': active_query.filter_by(tier='C').count(),
+        'd_tier': active_query.filter_by(tier='D').count(),
+        'submitted': active_query.filter_by(status='submitted').count(),
+        'shopping': active_query.filter_by(status='shopping').count(),
+        'archived': Proposal.query.filter(Proposal.is_archived == True).count(),
     }
-    
-    return render_template('admin_dashboard.html', 
-                         proposals=proposals, 
+
+    return render_template('admin_dashboard.html',
+                         proposals=proposals,
                          stats=stats,
                          status_options=STATUS_OPTIONS,
-                         current_filters={'tier': tier_filter, 'status': status_filter, 'search': search})
+                         current_filters={'tier': tier_filter, 'status': status_filter, 'search': search, 'view': view})
 
 
 @app.route('/admin/proposal/<submission_id>', methods=['GET', 'POST'])
@@ -1671,6 +1682,31 @@ def admin_delete_proposal(submission_id):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/admin/proposal/<submission_id>/archive', methods=['POST'])
+@team_required
+def admin_toggle_archive(submission_id):
+    """Archive or unarchive a proposal"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    proposal.is_archived = not proposal.is_archived
+    action_label = 'archived' if proposal.is_archived else 'unarchived'
+
+    user_name = current_user.name if current_user.is_authenticated else 'System'
+    note = ProposalNote(
+        proposal_id=proposal.id,
+        user_name=user_name,
+        action='status_change',
+        old_value='Archived' if not proposal.is_archived else 'Active',
+        new_value='Archived' if proposal.is_archived else 'Active',
+    )
+    db.session.add(note)
+    db.session.commit()
+    flash(f'Proposal "{proposal.book_title}" has been {action_label}.', 'success')
+
+    if proposal.is_archived:
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
+
+
 @app.route('/admin/proposals/bulk-action', methods=['POST'])
 @team_required
 def admin_bulk_action():
@@ -1690,6 +1726,18 @@ def admin_bulk_action():
             db.session.delete(p)
         db.session.commit()
         flash(f'{count} proposal(s) deleted.', 'success')
+    elif action == 'archive':
+        count = len(proposals)
+        for p in proposals:
+            p.is_archived = True
+        db.session.commit()
+        flash(f'{count} proposal(s) archived.', 'success')
+    elif action == 'unarchive':
+        count = len(proposals)
+        for p in proposals:
+            p.is_archived = False
+        db.session.commit()
+        flash(f'{count} proposal(s) restored from archive.', 'success')
     elif action in [s[0] for s in STATUS_OPTIONS]:
         count = len(proposals)
         for p in proposals:
@@ -2062,6 +2110,9 @@ def run_migrations():
         if 'content_hash' not in proposal_cols:
             conn.execute(text('ALTER TABLE proposal ADD COLUMN content_hash VARCHAR(64)'))
             print("Migration: added proposal.content_hash")
+        if 'is_archived' not in proposal_cols:
+            conn.execute(text('ALTER TABLE proposal ADD COLUMN is_archived BOOLEAN DEFAULT FALSE'))
+            print("Migration: added proposal.is_archived")
 
     # AdminUser table migrations
     admin_cols = [col['name'] for col in inspector.get_columns('admin_user')]
