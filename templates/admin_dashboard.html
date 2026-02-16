@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Admin Dashboard - Write It Great{% endblock %}
+{% block title %}{% if current_filters.view == 'archive' %}Archive{% else %}Admin Dashboard{% endif %} - Write It Great{% endblock %}
 {% block content %}
 <section class="dashboard-header">
     <div class="container">
@@ -20,7 +20,14 @@
     </div>
 </section>
 
+{# View Toggle: Active / Archive #}
+<div class="view-toggle">
+    <a href="{{ url_for('admin_dashboard') }}" class="view-toggle-btn{% if current_filters.view != 'archive' %} active{% endif %}">Active Proposals</a>
+    <a href="{{ url_for('admin_dashboard', view='archive') }}" class="view-toggle-btn{% if current_filters.view == 'archive' %} active{% endif %}">Archive{% if stats.archived %} ({{ stats.archived }}){% endif %}</a>
+</div>
+
 <form method="GET" class="filters-bar">
+    {% if current_filters.view == 'archive' %}<input type="hidden" name="view" value="archive">{% endif %}
     <div class="filter-group">
         <label for="search">Search:</label>
         <input type="text" id="search" name="search" value="{{ current_filters.search }}" placeholder="Name, title, email...">
@@ -43,7 +50,7 @@
         </select>
     </div>
     <button type="submit" class="btn btn-outline" style="padding: 0.5rem 1rem;">Filter</button>
-    <a href="{{ url_for('admin_dashboard') }}" style="padding: 0.5rem 1rem; color: var(--gray-600);">Clear</a>
+    <a href="{{ url_for('admin_dashboard', view=current_filters.view) }}" style="padding: 0.5rem 1rem; color: var(--gray-600);">Clear</a>
 </form>
 
 {# Bulk Actions Bar - shown when proposals are checked #}
@@ -51,10 +58,15 @@
     <div class="bulk-bar" id="bulkBar">
         <span class="bulk-count"><span id="bulkCount">0</span> selected</span>
         <select name="bulk_action" id="bulkAction">
-            <option value="">Set status...</option>
+            <option value="">Choose action...</option>
+            {% if current_filters.view == 'archive' %}
+            <option value="unarchive">Restore from Archive</option>
+            {% else %}
             {% for value, label in status_options %}
             <option value="{{ value }}">{{ label }}</option>
             {% endfor %}
+            <option value="archive">Archive</option>
+            {% endif %}
             <option value="delete">Delete</option>
         </select>
         <button type="submit" class="bulk-apply" id="bulkApply">Apply</button>
@@ -86,6 +98,15 @@
                 <td>
                     <div class="quick-actions">
                         <a href="{{ url_for('admin_proposal_detail', submission_id=p.submission_id) }}" class="qa-edit">View</a>
+                        {% if current_filters.view == 'archive' %}
+                        <form method="POST" action="{{ url_for('admin_toggle_archive', submission_id=p.submission_id) }}" style="display:inline;">
+                            <button type="submit" class="qa-restore">Restore</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('admin_toggle_archive', submission_id=p.submission_id) }}" style="display:inline;">
+                            <button type="submit" class="qa-archive">Archive</button>
+                        </form>
+                        {% endif %}
                         <form method="POST" action="{{ url_for('admin_delete_proposal', submission_id=p.submission_id) }}" style="display:inline;" onsubmit="return confirm('Delete &quot;{{ p.book_title|e }}&quot;?');">
                             <button type="submit" class="qa-delete">Delete</button>
                         </form>
@@ -97,15 +118,23 @@
     </table>
     {% if proposals.pages > 1 %}
     <div class="pagination">
-        {% if proposals.has_prev %}<a href="{{ url_for('admin_dashboard', page=proposals.prev_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search) }}">← Prev</a>{% endif %}
+        {% if proposals.has_prev %}<a href="{{ url_for('admin_dashboard', page=proposals.prev_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search, view=current_filters.view) }}">← Prev</a>{% endif %}
         {% for page_num in proposals.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-            {% if page_num %}<a href="{{ url_for('admin_dashboard', page=page_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search) }}" {% if page_num == proposals.page %}class="active"{% endif %}>{{ page_num }}</a>{% else %}<span>...</span>{% endif %}
+            {% if page_num %}<a href="{{ url_for('admin_dashboard', page=page_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search, view=current_filters.view) }}" {% if page_num == proposals.page %}class="active"{% endif %}>{{ page_num }}</a>{% else %}<span>...</span>{% endif %}
         {% endfor %}
-        {% if proposals.has_next %}<a href="{{ url_for('admin_dashboard', page=proposals.next_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search) }}">Next →</a>{% endif %}
+        {% if proposals.has_next %}<a href="{{ url_for('admin_dashboard', page=proposals.next_num, tier=current_filters.tier, status=current_filters.status, search=current_filters.search, view=current_filters.view) }}">Next →</a>{% endif %}
     </div>
     {% endif %}
     {% else %}
-    <div class="empty-state"><h3>No proposals found</h3><p>Proposals will appear here once authors submit them.</p></div>
+    <div class="empty-state">
+        {% if current_filters.view == 'archive' %}
+        <h3>No archived proposals</h3>
+        <p>Archived proposals will appear here. Use the Archive button on active proposals to move them here.</p>
+        {% else %}
+        <h3>No proposals found</h3>
+        <p>Proposals will appear here once authors submit them.</p>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
 {% endblock %}
