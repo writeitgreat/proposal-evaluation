@@ -7,22 +7,22 @@ Connect your Wix site to the Write It Great proposal evaluation system.
 ## Overview
 
 This integration lets authors submit proposals through a native Wix form.
-The form sends data to your Heroku backend, which runs the AI evaluation
+The form sends data to the Write It Great backend, which runs the AI evaluation
 and returns a results URL.
 
-**Architecture:**  Wix Form → Wix Velo (backend) → Heroku `/api/submit` → AI evaluation
+**Architecture:**  Wix Form → Wix Velo (backend) → writeitgreat.com `/api/submit` → AI evaluation
 
 ---
 
-## Part 1: Heroku Configuration
+## Part 1: Server Configuration
 
-Set these config vars in your Heroku dashboard (Settings → Config Vars):
+Set these environment variables on your server (e.g. Heroku Settings → Config Vars):
 
 | Variable       | Value                                | Notes                              |
 |----------------|--------------------------------------|------------------------------------|
 | `API_KEY`      | Generate a strong random token       | e.g. `wIG_api_2026_xK9mP3qR7vLw`  |
 | `CORS_ORIGIN`  | `https://www.writeitgreat.com`       | Comma-separate multiple origins    |
-| `APP_URL`      | `https://your-app.herokuapp.com`     | Already set if emails are working  |
+| `APP_URL`      | `https://writeitgreat.com`           | Used in email links and API responses |
 
 Generate an API key with:
 ```bash
@@ -70,8 +70,8 @@ Add these elements to the page and set their IDs (in Properties panel):
 
 1. In the Wix dashboard go to **Developer Tools → Secrets Manager**
 2. Create a new secret:
-   - Name: `HEROKU_API_KEY`
-   - Value: (paste the same API_KEY value you set in Heroku)
+   - Name: `PROPOSAL_API_KEY`
+   - Value: (paste the same API_KEY value you set on your server)
 
 ### 2d. Add Backend Code
 
@@ -88,10 +88,10 @@ Create the file `backend/http-functions.js` (or use the Velo sidebar):
 import { fetch } from 'wix-fetch';
 import { getSecret } from 'wix-secrets-backend';
 
-const HEROKU_URL = 'https://your-app.herokuapp.com';  // ← UPDATE THIS
+const APP_URL = 'https://writeitgreat.com';  // Your backend URL
 
 export async function submitProposal(formData, fileUrl) {
-    const apiKey = await getSecret('HEROKU_API_KEY');
+    const apiKey = await getSecret('PROPOSAL_API_KEY');
 
     // Download the uploaded file from Wix CDN so we can forward it
     const fileResponse = await fetch(fileUrl);
@@ -123,7 +123,7 @@ export async function submitProposal(formData, fileUrl) {
     body.set(new Uint8Array(fileBuffer), preamble.length);
     body.set(epilogue, preamble.length + fileBuffer.byteLength);
 
-    const response = await fetch(`${HEROKU_URL}/api/submit`, {
+    const response = await fetch(`${APP_URL}/api/submit`, {
         method: 'POST',
         headers: {
             'Content-Type': `multipart/form-data; boundary=${boundary}`,
@@ -221,12 +221,12 @@ $w.onReady(function () {
 
 ## Part 3: Testing
 
-1. **Set Heroku config vars** (`API_KEY`, `CORS_ORIGIN`, `APP_URL`)
+1. **Set server config vars** (`API_KEY`, `CORS_ORIGIN`, `APP_URL`)
 2. **Test the API directly** with curl:
 
 ```bash
 # Replace with your actual values
-API_URL="https://your-app.herokuapp.com"
+API_URL="https://writeitgreat.com"
 API_KEY="your-api-key-here"
 
 curl -X POST "$API_URL/api/submit" \
@@ -243,8 +243,8 @@ Expected response:
 {
   "success": true,
   "submission_id": "WIG-20260217-ABC12",
-  "results_url": "https://your-app.herokuapp.com/results/WIG-20260217-ABC12",
-  "status_url": "https://your-app.herokuapp.com/api/status/WIG-20260217-ABC12"
+  "results_url": "https://writeitgreat.com/results/WIG-20260217-ABC12",
+  "status_url": "https://writeitgreat.com/api/status/WIG-20260217-ABC12"
 }
 ```
 
@@ -288,8 +288,8 @@ Expected response:
 {
   "success": true,
   "submission_id": "WIG-20260217-ABC12",
-  "results_url": "https://your-app.herokuapp.com/results/WIG-20260217-ABC12",
-  "status_url": "https://your-app.herokuapp.com/api/status/WIG-20260217-ABC12"
+  "results_url": "https://writeitgreat.com/results/WIG-20260217-ABC12",
+  "status_url": "https://writeitgreat.com/api/status/WIG-20260217-ABC12"
 }
 ```
 
