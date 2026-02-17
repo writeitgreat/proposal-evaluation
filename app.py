@@ -58,6 +58,10 @@ SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 FROM_EMAIL = os.environ.get('FROM_EMAIL', '') or SMTP_USER
 TEAM_EMAILS = (os.environ.get('TEAM_EMAIL') or os.environ.get('TEAM_EMAILS') or 'anna@writeitgreat.com').split(',')
 
+# External API configuration (Wix integration)
+API_KEY = os.environ.get('API_KEY', '')
+CORS_ORIGIN = os.environ.get('CORS_ORIGIN', 'https://www.writeitgreat.com')
+
 # Status options for proposals
 STATUS_OPTIONS = [
     ('submitted', 'Submitted'),
@@ -1191,6 +1195,152 @@ def check_status(submission_id):
         'status': proposal.status,
         'ready': proposal.status not in ('processing',)
     })
+
+
+# ---------------------------------------------------------------------------
+# External Submission API  (Wix integration)
+# ---------------------------------------------------------------------------
+
+# Simple in-memory rate limiter: max 10 submissions per IP per hour
+_submit_rate = {}
+
+def _check_rate_limit(ip, max_requests=10, window=3600):
+    """Return True if the request is within rate limits."""
+    import time
+    now = time.time()
+    hits = _submit_rate.get(ip, [])
+    hits = [t for t in hits if now - t < window]
+    if len(hits) >= max_requests:
+        return False
+    hits.append(now)
+    _submit_rate[ip] = hits
+    return True
+
+
+def _cors_headers(response):
+    """Add CORS headers scoped to the configured origin."""
+    origin = request.headers.get('Origin', '')
+    allowed = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
+    if origin in allowed:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-API-Key'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+    return response
+
+
+@app.route('/api/submit', methods=['POST', 'OPTIONS'])
+def api_submit():
+    """
+    External submission endpoint for the Wix site.
+
+    Accepts multipart/form-data with:
+        - author_name, author_email, book_title  (required text fields)
+        - proposal_type  (optional: 'full', 'marketing_only', 'no_marketing')
+        - proposal_file  (required: PDF or DOCX, max 10 MB)
+
+    Requires X-API-Key header matching the API_KEY env var.
+    Returns JSON: { success, results_url, status_url }
+    """
+    # CORS preflight
+    if request.method == 'OPTIONS':
+        resp = app.make_default_options_response()
+        return _cors_headers(resp)
+
+    def _json(data, status=200):
+        resp = jsonify(data)
+        resp.status_code = status
+        return _cors_headers(resp)
+
+    # --- Auth ---
+    if not API_KEY:
+        return _json({'success': False, 'error': 'API not configured.'}, 503)
+
+    provided_key = request.headers.get('X-API-Key', '')
+    if provided_key != API_KEY:
+        return _json({'success': False, 'error': 'Invalid or missing API key.'}, 401)
+
+    # --- Rate limit ---
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    if not _check_rate_limit(client_ip):
+        return _json({'success': False, 'error': 'Too many submissions. Please try again later.'}, 429)
+
+    # --- Validate fields ---
+    try:
+        author_name = request.form.get('author_name', '').strip()
+        author_email = request.form.get('author_email', '').strip()
+        book_title = request.form.get('book_title', '').strip()
+        proposal_type = request.form.get('proposal_type', 'full').strip()
+
+        if not all([author_name, author_email, book_title]):
+            return _json({'success': False, 'error': 'Author name, email, and book title are required.'}, 400)
+
+        if proposal_type not in ('full', 'marketing_only', 'no_marketing'):
+            proposal_type = 'full'
+
+        # --- Validate file ---
+        file = request.files.get('proposal_file')
+        if not file or file.filename == '':
+            return _json({'success': False, 'error': 'Please upload a proposal document (PDF or DOCX).'}, 400)
+
+        original_filename = secure_filename(file.filename)
+        filename_lower = original_filename.lower()
+
+        if not (filename_lower.endswith('.pdf') or filename_lower.endswith('.docx') or filename_lower.endswith('.doc')):
+            return _json({'success': False, 'error': 'Only PDF and Word documents are accepted.'}, 400)
+
+        file_bytes = file.read()
+
+        # 10 MB limit for external submissions
+        if len(file_bytes) > 10 * 1024 * 1024:
+            return _json({'success': False, 'error': 'File size must be under 10 MB.'}, 400)
+
+        file.seek(0)
+
+        # --- Extract text ---
+        if filename_lower.endswith('.pdf'):
+            proposal_text = extract_text_from_pdf(file)
+        else:
+            proposal_text = extract_text_from_docx(file)
+
+        if len(proposal_text.strip()) < 500:
+            return _json({'success': False, 'error': 'Could not extract enough text from the document. Please check the file.'}, 400)
+
+        # --- Create proposal ---
+        proposal = Proposal(
+            submission_id=generate_submission_id(),
+            author_name=author_name,
+            author_email=author_email,
+            book_title=book_title,
+            proposal_type=proposal_type,
+            ownership_confirmed=True,
+            proposal_text=proposal_text[:50000],
+            original_filename=original_filename,
+            original_file=file_bytes,
+            status='processing'
+        )
+        db.session.add(proposal)
+        db.session.commit()
+
+        # --- Kick off background evaluation ---
+        thread = threading.Thread(
+            target=process_evaluation_background,
+            args=(app, proposal.submission_id, proposal_text, proposal_type, author_name, book_title)
+        )
+        thread.daemon = True
+        thread.start()
+
+        app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+        return _json({
+            'success': True,
+            'submission_id': proposal.submission_id,
+            'results_url': f"{app_url}/results/{proposal.submission_id}",
+            'status_url': f"{app_url}/api/status/{proposal.submission_id}",
+        })
+
+    except Exception as e:
+        print(f"/api/submit error: {e}")
+        traceback.print_exc()
+        return _json({'success': False, 'error': 'An unexpected error occurred. Please try again.'}, 500)
 
 
 @app.route('/results/<submission_id>')
