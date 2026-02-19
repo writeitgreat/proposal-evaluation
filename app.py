@@ -2629,9 +2629,121 @@ def admin_delete_member(user_id):
 @app.route('/admin/publishers')
 @team_required
 def admin_publishers():
-    """Manage publisher accounts"""
-    publishers = Publisher.query.order_by(Publisher.created_at.desc()).all()
-    return render_template('admin_publishers.html', publishers=publishers)
+    """Manage publisher accounts — list with filters"""
+    # Filters
+    search = request.args.get('search', '').strip()
+    genre_filter = request.args.get('genre', '').strip()
+    status_filter = request.args.get('status', '').strip()  # pending, active, deactivated
+
+    query = Publisher.query
+
+    if search:
+        search_term = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                Publisher.name.ilike(search_term),
+                Publisher.email.ilike(search_term),
+                Publisher.company.ilike(search_term),
+            )
+        )
+
+    if status_filter == 'pending':
+        query = query.filter_by(is_approved=False)
+    elif status_filter == 'active':
+        query = query.filter_by(is_approved=True, is_active_account=True)
+    elif status_filter == 'deactivated':
+        query = query.filter_by(is_active_account=False)
+
+    if genre_filter:
+        # Match publishers whose preferred_genres JSON contains the genre
+        query = query.filter(Publisher.preferred_genres.ilike(f'%{genre_filter}%'))
+
+    publishers = query.order_by(Publisher.created_at.desc()).all()
+
+    # Stats (unfiltered)
+    total = Publisher.query.count()
+    approved = Publisher.query.filter_by(is_approved=True).count()
+    pending = Publisher.query.filter_by(is_approved=False).count()
+    active = Publisher.query.filter_by(is_approved=True, is_active_account=True).count()
+
+    return render_template('admin_publishers.html',
+                         publishers=publishers,
+                         genre_options=GENRE_OPTIONS,
+                         publisher_status_labels=PUBLISHER_STATUS_LABELS,
+                         stats={'total': total, 'approved': approved, 'pending': pending, 'active': active},
+                         current_filters={'search': search, 'genre': genre_filter, 'status': status_filter})
+
+
+@app.route('/admin/publishers/<int:publisher_id>')
+@team_required
+def admin_publisher_detail(publisher_id):
+    """View a publisher's full profile and shared proposal history"""
+    publisher = Publisher.query.get_or_404(publisher_id)
+
+    # Parse genres
+    stored_genres = []
+    if publisher.preferred_genres:
+        try:
+            stored_genres = json.loads(publisher.preferred_genres)
+        except (json.JSONDecodeError, TypeError):
+            stored_genres = []
+
+    # Get shared proposals with their publisher status
+    shared = PublisherProposal.query.filter_by(publisher_id=publisher.id)\
+        .join(Proposal).order_by(PublisherProposal.shared_at.desc()).all()
+
+    return render_template('admin_publisher_detail.html',
+                         publisher=publisher,
+                         stored_genres=stored_genres,
+                         shared_proposals=shared,
+                         publisher_status_labels=PUBLISHER_STATUS_LABELS)
+
+
+@app.route('/admin/publishers/add', methods=['GET', 'POST'])
+@team_required
+def admin_add_publisher():
+    """Manually create a publisher account (pre-approved)"""
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        company = request.form.get('company', '').strip() or None
+        password = request.form.get('password', '')
+
+        if not name or not email or not password:
+            flash('Name, email, and password are required.', 'error')
+            return render_template('admin_add_publisher.html', genre_options=GENRE_OPTIONS)
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('admin_add_publisher.html', genre_options=GENRE_OPTIONS)
+
+        existing = Publisher.query.filter_by(email=email).first()
+        if existing:
+            flash(f'A publisher with email {email} already exists.', 'error')
+            return render_template('admin_add_publisher.html', genre_options=GENRE_OPTIONS)
+
+        publisher = Publisher(
+            email=email,
+            name=name,
+            company=company,
+            is_approved=True,
+            is_active_account=True,
+            bio=request.form.get('bio', '').strip() or None,
+            preferred_topics=request.form.get('preferred_topics', '').strip() or None,
+            website=request.form.get('website', '').strip() or None,
+        )
+        publisher.set_password(password)
+
+        selected_genres = request.form.getlist('preferred_genres')
+        publisher.preferred_genres = json.dumps(selected_genres) if selected_genres else None
+
+        db.session.add(publisher)
+        db.session.commit()
+
+        flash(f'{name} has been added as an approved publisher.', 'success')
+        return redirect(url_for('admin_publisher_detail', publisher_id=publisher.id))
+
+    return render_template('admin_add_publisher.html', genre_options=GENRE_OPTIONS)
 
 
 @app.route('/admin/publishers/<int:publisher_id>/approve', methods=['POST'])
@@ -2660,7 +2772,7 @@ def admin_approve_publisher(publisher_id):
         print(f"Publisher approval email error: {e}")
 
     flash(f'{publisher.name} has been approved.', 'success')
-    return redirect(url_for('admin_publishers'))
+    return redirect(request.referrer or url_for('admin_publishers'))
 
 
 @app.route('/admin/publishers/<int:publisher_id>/toggle-active', methods=['POST'])
@@ -2672,7 +2784,7 @@ def admin_toggle_publisher_active(publisher_id):
     db.session.commit()
     status = 'activated' if publisher.is_active_account else 'deactivated'
     flash(f'{publisher.name} has been {status}.', 'success')
-    return redirect(url_for('admin_publishers'))
+    return redirect(request.referrer or url_for('admin_publishers'))
 
 
 @app.route('/admin/publishers/<int:publisher_id>/delete', methods=['POST'])
