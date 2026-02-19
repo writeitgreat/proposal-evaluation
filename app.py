@@ -47,6 +47,14 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'author_login'
 login_manager.login_message = None  # Disable "Please log in" message
 
+# Custom Jinja filter for parsing JSON strings in templates
+@app.template_filter('fromjson')
+def fromjson_filter(s):
+    try:
+        return json.loads(s) if s else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
 # OpenAI client
 client = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 
@@ -102,6 +110,29 @@ AUTHOR_EMAIL_MILESTONES = {
     'shopping', 'publisher_interest', 'offer_received',
     'deal_closed', 'declined',
 }
+
+# Publisher-specific statuses (set by the publisher on shared proposals)
+PUBLISHER_STATUS_OPTIONS = [
+    ('new', 'New'),
+    ('proposal_read', 'Proposal Read'),
+    ('interested', 'Interested'),
+    ('ready_to_discuss', 'Ready to Discuss Offer'),
+    ('deal_sent', 'Deal Sent'),
+    ('deal_signed', 'Deal Signed'),
+]
+
+PUBLISHER_STATUS_LABELS = {key: label for key, label in PUBLISHER_STATUS_OPTIONS}
+
+# Genre options for publisher profiles
+GENRE_OPTIONS = [
+    'Literary Fiction', 'Commercial Fiction', 'Mystery & Thriller', 'Romance',
+    'Science Fiction', 'Fantasy', 'Horror', 'Historical Fiction',
+    'Young Adult', 'Middle Grade', 'Children\'s', 'Memoir',
+    'Biography', 'Self-Help', 'Business', 'Health & Wellness',
+    'Science & Technology', 'History', 'Politics & Current Affairs',
+    'True Crime', 'Travel', 'Cookbooks & Food', 'Religion & Spirituality',
+    'Poetry', 'Graphic Novels', 'Other Nonfiction',
+]
 
 # ============================================================================
 # DATABASE MODELS
@@ -304,6 +335,12 @@ class Publisher(UserMixin, db.Model):
     password_reset_token = db.Column(db.String(100))
     password_reset_expires = db.Column(db.DateTime)
 
+    # Profile fields (visible to admin team, not authors)
+    bio = db.Column(db.Text)  # Short professional bio
+    preferred_genres = db.Column(db.Text)  # JSON list of genres
+    preferred_topics = db.Column(db.Text)  # Free-text topics/interests
+    website = db.Column(db.String(300))
+
     is_author = False
     is_team_member = False
     is_publisher = True
@@ -342,6 +379,8 @@ class PublisherProposal(db.Model):
     proposal_id = db.Column(db.Integer, db.ForeignKey('proposal.id'), nullable=False)
     shared_at = db.Column(db.DateTime, default=datetime.utcnow)
     shared_by = db.Column(db.String(200))  # Name of admin who shared
+    publisher_status = db.Column(db.String(50), default='new')  # Publisher's status on this proposal
+    status_updated_at = db.Column(db.DateTime)  # When publisher last changed status
 
     proposal = db.relationship('Proposal', backref=db.backref('shared_with', lazy='dynamic'))
 
@@ -1727,8 +1766,9 @@ def publisher_dashboard():
     """Publisher dashboard — shows proposals shared with them"""
     shared = PublisherProposal.query.filter_by(publisher_id=current_user.id)\
         .join(Proposal).order_by(PublisherProposal.shared_at.desc()).all()
-    proposals = [sp.proposal for sp in shared]
-    return render_template('publisher_dashboard.html', proposals=proposals)
+    return render_template('publisher_dashboard.html',
+                         shared_proposals=shared,
+                         publisher_status_labels=PUBLISHER_STATUS_LABELS)
 
 
 @app.route('/publisher/proposal/<submission_id>')
@@ -1748,7 +1788,79 @@ def publisher_proposal_detail(submission_id):
         compute_advance_estimate(evaluation)
     return render_template('publisher_proposal.html',
                          proposal=proposal,
-                         evaluation=evaluation)
+                         evaluation=evaluation,
+                         shared=shared,
+                         publisher_status_options=PUBLISHER_STATUS_OPTIONS)
+
+
+@app.route('/publisher/proposal/<submission_id>/update-status', methods=['POST'])
+@publisher_login_required
+def publisher_update_status(submission_id):
+    """Publisher updates their status on a shared proposal"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    shared = PublisherProposal.query.filter_by(
+        publisher_id=current_user.id, proposal_id=proposal.id).first()
+    if not shared:
+        flash('You do not have access to this proposal.', 'error')
+        return redirect(url_for('publisher_dashboard'))
+
+    new_status = request.form.get('publisher_status', '').strip()
+    valid_statuses = {key for key, _ in PUBLISHER_STATUS_OPTIONS}
+    if new_status not in valid_statuses:
+        flash('Invalid status.', 'error')
+        return redirect(url_for('publisher_proposal_detail', submission_id=submission_id))
+
+    old_status = shared.publisher_status
+    shared.publisher_status = new_status
+    shared.status_updated_at = datetime.utcnow()
+    db.session.commit()
+
+    # Log the change in the proposal activity
+    note = ProposalNote(
+        proposal_id=proposal.id,
+        user_name=f'{current_user.name} ({current_user.company or "Publisher"})',
+        action='publisher_status_change',
+        old_value=PUBLISHER_STATUS_LABELS.get(old_status, old_status),
+        new_value=PUBLISHER_STATUS_LABELS.get(new_status, new_status),
+        content=f'Publisher status updated'
+    )
+    db.session.add(note)
+    db.session.commit()
+
+    flash(f'Status updated to "{PUBLISHER_STATUS_LABELS.get(new_status, new_status)}".', 'success')
+    return redirect(url_for('publisher_proposal_detail', submission_id=submission_id))
+
+
+@app.route('/publisher/profile', methods=['GET', 'POST'])
+@publisher_login_required
+def publisher_profile():
+    """Publisher profile editing — topics, genres, bio"""
+    if request.method == 'POST':
+        current_user.name = request.form.get('name', current_user.name).strip()
+        current_user.company = request.form.get('company', '').strip() or None
+        current_user.bio = request.form.get('bio', '').strip() or None
+        current_user.preferred_topics = request.form.get('preferred_topics', '').strip() or None
+        current_user.website = request.form.get('website', '').strip() or None
+
+        # Genres come as a multi-select
+        selected_genres = request.form.getlist('preferred_genres')
+        current_user.preferred_genres = json.dumps(selected_genres) if selected_genres else None
+
+        db.session.commit()
+        flash('Profile updated successfully.', 'success')
+        return redirect(url_for('publisher_profile'))
+
+    # Parse stored genres for template
+    stored_genres = []
+    if current_user.preferred_genres:
+        try:
+            stored_genres = json.loads(current_user.preferred_genres)
+        except (json.JSONDecodeError, TypeError):
+            stored_genres = []
+
+    return render_template('publisher_profile.html',
+                         genre_options=GENRE_OPTIONS,
+                         stored_genres=stored_genres)
 
 
 @app.route('/publisher/forgot-password', methods=['GET', 'POST'])
@@ -1996,7 +2108,8 @@ def admin_proposal_detail(submission_id):
                          activity=activity,
                          status_options=STATUS_OPTIONS,
                          shared_publishers=shared_publishers,
-                         available_publishers=available_publishers)
+                         available_publishers=available_publishers,
+                         publisher_status_labels=PUBLISHER_STATUS_LABELS)
 
 
 @app.route('/admin/proposal/<submission_id>/view-proposal')
@@ -2718,11 +2831,37 @@ def run_migrations():
     if not inspector.has_table('publisher'):
         Publisher.__table__.create(db.engine)
         print("Migration: created publisher table")
+    else:
+        # Add new profile columns to existing publisher table
+        publisher_cols = [col['name'] for col in inspector.get_columns('publisher')]
+        with db.engine.begin() as conn:
+            if 'bio' not in publisher_cols:
+                conn.execute(text('ALTER TABLE publisher ADD COLUMN bio TEXT'))
+                print("Migration: added publisher.bio")
+            if 'preferred_genres' not in publisher_cols:
+                conn.execute(text('ALTER TABLE publisher ADD COLUMN preferred_genres TEXT'))
+                print("Migration: added publisher.preferred_genres")
+            if 'preferred_topics' not in publisher_cols:
+                conn.execute(text('ALTER TABLE publisher ADD COLUMN preferred_topics TEXT'))
+                print("Migration: added publisher.preferred_topics")
+            if 'website' not in publisher_cols:
+                conn.execute(text('ALTER TABLE publisher ADD COLUMN website VARCHAR(300)'))
+                print("Migration: added publisher.website")
 
     # PublisherProposal table (join table for sharing)
     if not inspector.has_table('publisher_proposal'):
         PublisherProposal.__table__.create(db.engine)
         print("Migration: created publisher_proposal table")
+    else:
+        # Add new status columns to existing publisher_proposal table
+        pp_cols = [col['name'] for col in inspector.get_columns('publisher_proposal')]
+        with db.engine.begin() as conn:
+            if 'publisher_status' not in pp_cols:
+                conn.execute(text("ALTER TABLE publisher_proposal ADD COLUMN publisher_status VARCHAR(50) DEFAULT 'new'"))
+                print("Migration: added publisher_proposal.publisher_status")
+            if 'status_updated_at' not in pp_cols:
+                conn.execute(text('ALTER TABLE publisher_proposal ADD COLUMN status_updated_at TIMESTAMP'))
+                print("Migration: added publisher_proposal.status_updated_at")
 
 
 # ============================================================================

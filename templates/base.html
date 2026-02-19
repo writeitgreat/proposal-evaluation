@@ -34,6 +34,7 @@
                 {% elif current_user.is_authenticated and current_user.is_publisher %}
                 {# Publisher nav #}
                 <a href="{{ url_for('publisher_dashboard') }}">Shared Proposals</a>
+                <a href="{{ url_for('publisher_profile') }}">Profile</a>
                 <a href="{{ url_for('publisher_logout') }}">Logout</a>
                 {% endif %}
             </nav>

@@ -9,18 +9,22 @@
 </section>
 
 <div class="container">
-    {% if proposals %}
+    {% if shared_proposals %}
     <div style="display: grid; gap: 1rem;">
-        {% for p in proposals %}
+        {% for sp in shared_proposals %}
+        {% set p = sp.proposal %}
         <a href="{{ url_for('publisher_proposal_detail', submission_id=p.submission_id) }}" class="card" style="text-decoration: none; color: inherit; display: block; transition: box-shadow 0.2s;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
                 <div style="flex: 1; min-width: 200px;">
                     <h3 style="margin: 0; color: var(--primary);">{{ p.book_title }}</h3>
                     <p style="margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--gray-500);">
-                        by {{ p.author_name }} &middot; Submitted {{ p.submitted_at.strftime('%B %d, %Y') if p.submitted_at else 'N/A' }}
+                        by {{ p.author_name }} &middot; Shared {{ sp.shared_at.strftime('%B %d, %Y') if sp.shared_at else 'N/A' }}
                     </p>
                 </div>
-                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    {% if sp.publisher_status and sp.publisher_status != 'new' %}
+                    <span class="status-badge publisher-status-{{ sp.publisher_status }}">{{ publisher_status_labels.get(sp.publisher_status, sp.publisher_status) }}</span>
+                    {% endif %}
                     {% if p.tier %}
                     <span class="tier-badge tier-{{ p.tier|lower }}">{{ p.tier }}-Tier</span>
                     {% endif %}

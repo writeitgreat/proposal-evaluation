@@ -234,6 +234,14 @@ h1, h2, h3 { color: var(--gray-900); }
 .status-badge.declined { background: #fee2e2; color: #b91c1c; }
 .status-badge.on_hold { background: var(--gray-200); color: var(--gray-600); }
 
+/* Publisher-specific statuses */
+.status-badge.publisher-status-new { background: var(--gray-200); color: var(--gray-600); }
+.status-badge.publisher-status-proposal_read { background: #e0f2fe; color: #0369a1; }
+.status-badge.publisher-status-interested { background: #fae8ff; color: #a21caf; }
+.status-badge.publisher-status-ready_to_discuss { background: #fef3c7; color: #92400e; }
+.status-badge.publisher-status-deal_sent { background: #f3e8ff; color: #7c3aed; }
+.status-badge.publisher-status-deal_signed { background: #dcfce7; color: #166534; }
+
 /* Results Page */
 .results-header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: white; padding: 3rem 2rem; text-align: center; border-bottom: 4px solid var(--accent); }
 .results-header h1 { color: white; font-size: 2rem; margin-bottom: 0.5rem; }
