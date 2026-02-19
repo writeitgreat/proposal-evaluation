@@ -107,6 +107,20 @@
 {% if not evaluation %}
 <div class="results-container">
     <a href="{{ url_for('publisher_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+
+    {# Publisher status update #}
+    <div class="results-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1rem;">
+        <form method="POST" action="{{ url_for('publisher_update_status', submission_id=proposal.submission_id) }}" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <label style="font-weight: 600; font-size: 0.875rem; white-space: nowrap; margin: 0;">Your Status:</label>
+            <select name="publisher_status" style="flex: 1; min-width: 180px; padding: 0.5rem; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.875rem;">
+                {% for value, label in publisher_status_options %}
+                <option value="{{ value }}" {% if shared.publisher_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem;">Update</button>
+        </form>
+    </div>
+
     <div class="results-card" style="text-align: center; padding: 3rem;">
         <h2 style="color: var(--primary);">Evaluation Pending</h2>
         <p style="color: #6B6B7B; margin-top: 1rem;">This proposal is still being evaluated. Check back soon for the full report.</p>
@@ -132,6 +146,19 @@
 
 <div class="results-container">
     <a href="{{ url_for('publisher_dashboard') }}" class="back-link">&larr; Back to Dashboard</a>
+
+    {# Publisher status update #}
+    <div class="results-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1rem;">
+        <form method="POST" action="{{ url_for('publisher_update_status', submission_id=proposal.submission_id) }}" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <label style="font-weight: 600; font-size: 0.875rem; white-space: nowrap; margin: 0;">Your Status:</label>
+            <select name="publisher_status" style="flex: 1; min-width: 180px; padding: 0.5rem; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.875rem;">
+                {% for value, label in publisher_status_options %}
+                <option value="{{ value }}" {% if shared.publisher_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem;">Update</button>
+        </form>
+    </div>
 
     <div class="results-card">
         <!-- Header -->

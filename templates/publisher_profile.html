@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}My Profile - Write It Great{% endblock %}
+{% block content %}
+<section class="dashboard-header">
+    <div class="container">
+        <h1>My Profile</h1>
+        <p>Update your profile to help the Write It Great team match you with relevant proposals.</p>
+    </div>
+</section>
+
+<div class="container" style="max-width: 700px;">
+    <div class="card" style="padding: 2rem;">
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" value="{{ current_user.name }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="company">Company / Publisher</label>
+                <input type="text" id="company" name="company" value="{{ current_user.company or '' }}" placeholder="e.g. Penguin Random House">
+            </div>
+
+            <div class="form-group">
+                <label for="website">Website</label>
+                <input type="url" id="website" name="website" value="{{ current_user.website or '' }}" placeholder="https://yourpublisher.com">
+            </div>
+
+            <div class="form-group">
+                <label for="bio">Professional Bio</label>
+                <textarea id="bio" name="bio" rows="4" placeholder="A brief description of your role, experience, and what types of books you typically acquire...">{{ current_user.bio or '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Preferred Genres</label>
+                <p style="font-size: 0.8125rem; color: var(--gray-500); margin-bottom: 0.5rem;">Select all genres you're interested in acquiring.</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.375rem;">
+                    {% for genre in genre_options %}
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 400; padding: 0.375rem 0.5rem; border-radius: 4px; cursor: pointer; transition: background 0.15s;"
+                           onmouseover="this.style.background='var(--gray-100)'" onmouseout="this.style.background='transparent'">
+                        <input type="checkbox" name="preferred_genres" value="{{ genre }}"
+                               {% if genre in stored_genres %}checked{% endif %}
+                               style="accent-color: var(--primary);">
+                        {{ genre }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="preferred_topics">Preferred Topics & Interests</label>
+                <textarea id="preferred_topics" name="preferred_topics" rows="3" placeholder="e.g. AI/tech, women's leadership, narrative nonfiction about science, debut literary fiction...">{{ current_user.preferred_topics or '' }}</textarea>
+                <p style="font-size: 0.8125rem; color: var(--gray-500); margin-top: 0.25rem;">Free-form description of the topics and themes you look for in proposals.</p>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Save Profile</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
