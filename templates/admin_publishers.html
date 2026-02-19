@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Publisher Management - Write It Great{% endblock %}
+{% block content %}
+<section class="dashboard-header">
+    <div class="container">
+        <h1>Publisher Management</h1>
+        <p>Manage external publisher and editor accounts.</p>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-number">{{ publishers|length }}</div><div class="stat-label">Total</div></div>
+            <div class="stat-card"><div class="stat-number">{{ publishers|selectattr('is_approved')|list|length }}</div><div class="stat-label">Approved</div></div>
+            <div class="stat-card"><div class="stat-number">{{ publishers|rejectattr('is_approved')|list|length }}</div><div class="stat-label">Pending</div></div>
+            <div class="stat-card"><div class="stat-number">{{ publishers|selectattr('is_active_account')|selectattr('is_approved')|list|length }}</div><div class="stat-label">Active</div></div>
+        </div>
+    </div>
+</section>
+
+<div class="container" style="padding: 0;">
+    {% if publishers %}
+    <table class="proposals-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Company</th>
+                <th>Status</th>
+                <th>Shared</th>
+                <th>Joined</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pub in publishers %}
+            <tr {% if not pub.is_active_account %}style="opacity: 0.5;"{% endif %}>
+                <td><div class="author-name">{{ pub.name }}</div></td>
+                <td><span class="author-email" style="font-size: 0.8125rem;">{{ pub.email }}</span></td>
+                <td><span style="font-size: 0.8125rem; color: var(--gray-600);">{{ pub.company or '—' }}</span></td>
+                <td>
+                    {% if not pub.is_approved %}
+                        <span class="status-badge on_hold">Pending Approval</span>
+                    {% elif pub.is_active_account %}
+                        <span class="status-badge offer_received">Active</span>
+                    {% else %}
+                        <span class="status-badge declined">Deactivated</span>
+                    {% endif %}
+                </td>
+                <td><span style="font-size: 0.875rem;">{{ pub.shared_proposals.count() }}</span></td>
+                <td><span class="submitted-date">{{ pub.created_at.strftime('%b %d, %Y') if pub.created_at else 'N/A' }}</span></td>
+                <td>
+                    <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                        {% if not pub.is_approved %}
+                        <form method="POST" action="{{ url_for('admin_approve_publisher', publisher_id=pub.id) }}" style="display: inline;">
+                            <button type="submit" class="btn-action btn-action-success" title="Approve account">Approve</button>
+                        </form>
+                        {% endif %}
+
+                        {% if pub.is_active_account %}
+                        <form method="POST" action="{{ url_for('admin_toggle_publisher_active', publisher_id=pub.id) }}" style="display: inline;">
+                            <button type="submit" class="btn-action btn-action-warn" title="Deactivate account">Deactivate</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('admin_toggle_publisher_active', publisher_id=pub.id) }}" style="display: inline;">
+                            <button type="submit" class="btn-action btn-action-success" title="Reactivate account">Activate</button>
+                        </form>
+                        {% endif %}
+
+                        <form method="POST" action="{{ url_for('admin_delete_publisher', publisher_id=pub.id) }}" style="display: inline;"
+                              onsubmit="return confirm('Permanently delete {{ pub.name }}? This will also remove all their shared proposal access.');">
+                            <button type="submit" class="btn-action btn-action-danger" title="Delete account">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state" style="padding: 3rem;">
+        <h3>No publishers yet</h3>
+        <p>Publishers can request access at the publisher registration page. You can share the link with them.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

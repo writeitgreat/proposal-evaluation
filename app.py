@@ -178,9 +178,10 @@ class AdminUser(UserMixin, db.Model):
         return pyotp.totp.TOTP(self.totp_secret).provisioning_uri(
             name=self.email, issuer_name='Write It Great')
 
-    # Markers to distinguish from Author in user loader
+    # Markers to distinguish user types in user loader
     is_author = False
     is_team_member = True
+    is_publisher = False
 
     def verify_totp(self, code):
         if not self.totp_secret:
@@ -203,9 +204,10 @@ class Author(UserMixin, db.Model):
     password_reset_token = db.Column(db.String(100))
     password_reset_expires = db.Column(db.DateTime)
 
-    # Marker to distinguish from AdminUser in the user loader
+    # Markers to distinguish user types in user loader
     is_author = True
     is_team_member = False
+    is_publisher = False
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -289,6 +291,63 @@ class ProposalNote(db.Model):
     proposal = db.relationship('Proposal', backref=db.backref('activity_log', lazy='dynamic', order_by='ProposalNote.created_at.desc()'))
 
 
+class Publisher(UserMixin, db.Model):
+    """External publisher/editor account"""
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(200), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    company = db.Column(db.String(200))
+    is_approved = db.Column(db.Boolean, default=False)
+    is_active_account = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    password_reset_token = db.Column(db.String(100))
+    password_reset_expires = db.Column(db.DateTime)
+
+    is_author = False
+    is_team_member = False
+    is_publisher = True
+
+    shared_proposals = db.relationship('PublisherProposal', backref='publisher', lazy='dynamic')
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def generate_reset_token(self):
+        self.password_reset_token = uuid.uuid4().hex
+        self.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        return self.password_reset_token
+
+    def verify_reset_token(self, token):
+        if not self.password_reset_token or not self.password_reset_expires:
+            return False
+        if self.password_reset_token != token:
+            return False
+        if datetime.utcnow() > self.password_reset_expires:
+            return False
+        return True
+
+    @property
+    def is_admin(self):
+        return False
+
+
+class PublisherProposal(db.Model):
+    """Tracks which proposals are shared with which publishers"""
+    id = db.Column(db.Integer, primary_key=True)
+    publisher_id = db.Column(db.Integer, db.ForeignKey('publisher.id'), nullable=False)
+    proposal_id = db.Column(db.Integer, db.ForeignKey('proposal.id'), nullable=False)
+    shared_at = db.Column(db.DateTime, default=datetime.utcnow)
+    shared_by = db.Column(db.String(200))  # Name of admin who shared
+
+    proposal = db.relationship('Proposal', backref=db.backref('shared_with', lazy='dynamic'))
+
+    __table_args__ = (db.UniqueConstraint('publisher_id', 'proposal_id'),)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     """Load user from session — checks user_type to pick the right model"""
@@ -296,6 +355,11 @@ def load_user(user_id):
     user_type = flask_session.get('user_type', 'admin')
     if user_type == 'author':
         return Author.query.get(int(user_id))
+    elif user_type == 'publisher':
+        pub = Publisher.query.get(int(user_id))
+        if pub and (not pub.is_active_account or not pub.is_approved):
+            return None
+        return pub
     else:
         user = AdminUser.query.get(int(user_id))
         if user and not user.is_active_account:
@@ -336,6 +400,17 @@ def author_login_required(f):
     def decorated(*args, **kwargs):
         if not getattr(current_user, 'is_author', False):
             return redirect(url_for('author_login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def publisher_login_required(f):
+    """Decorator: requires login as an approved publisher"""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not getattr(current_user, 'is_publisher', False):
+            return redirect(url_for('publisher_login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -1554,6 +1629,193 @@ def author_reset_password(token):
 
 
 # ============================================================================
+# PUBLISHER ROUTES
+# ============================================================================
+
+@app.route('/publisher/register', methods=['GET', 'POST'])
+def publisher_register():
+    """Publisher self-registration (pending admin approval)"""
+    if current_user.is_authenticated:
+        if getattr(current_user, 'is_publisher', False):
+            return redirect(url_for('publisher_dashboard'))
+        logout_user()
+        session.pop('user_type', None)
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        company = request.form.get('company', '').strip()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        if not all([name, email, password]):
+            flash('All fields are required.', 'error')
+            return render_template('publisher_register.html')
+
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('publisher_register.html')
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('publisher_register.html')
+
+        existing = Publisher.query.filter_by(email=email).first()
+        if existing:
+            flash('An account with this email already exists.', 'error')
+            return redirect(url_for('publisher_login'))
+
+        publisher = Publisher(email=email, name=name, company=company)
+        publisher.set_password(password)
+        db.session.add(publisher)
+        db.session.commit()
+
+        flash('Account created! Your account is pending approval by our team. You will be able to log in once approved.', 'success')
+        return redirect(url_for('publisher_login'))
+
+    return render_template('publisher_register.html')
+
+
+@app.route('/publisher/login', methods=['GET', 'POST'])
+def publisher_login():
+    """Publisher login (no 2FA)"""
+    if current_user.is_authenticated:
+        if getattr(current_user, 'is_publisher', False):
+            return redirect(url_for('publisher_dashboard'))
+        logout_user()
+        session.pop('user_type', None)
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+
+        publisher = Publisher.query.filter_by(email=email).first()
+
+        if publisher and not publisher.is_active_account:
+            flash('This account has been deactivated. Contact our team for assistance.', 'error')
+            return render_template('publisher_login.html')
+
+        if publisher and not publisher.is_approved:
+            if publisher.check_password(password):
+                flash('Your account is pending approval. We will notify you once approved.', 'error')
+            else:
+                flash('Invalid email or password.', 'error')
+            return render_template('publisher_login.html')
+
+        if publisher and publisher.check_password(password):
+            session['user_type'] = 'publisher'
+            login_user(publisher)
+            return redirect(url_for('publisher_dashboard'))
+
+        flash('Invalid email or password.', 'error')
+
+    return render_template('publisher_login.html')
+
+
+@app.route('/publisher/logout')
+@login_required
+def publisher_logout():
+    """Publisher logout"""
+    logout_user()
+    session.pop('user_type', None)
+    return redirect(url_for('publisher_login'))
+
+
+@app.route('/publisher/dashboard')
+@publisher_login_required
+def publisher_dashboard():
+    """Publisher dashboard — shows proposals shared with them"""
+    shared = PublisherProposal.query.filter_by(publisher_id=current_user.id)\
+        .join(Proposal).order_by(PublisherProposal.shared_at.desc()).all()
+    proposals = [sp.proposal for sp in shared]
+    return render_template('publisher_dashboard.html', proposals=proposals)
+
+
+@app.route('/publisher/proposal/<submission_id>')
+@publisher_login_required
+def publisher_proposal_detail(submission_id):
+    """Publisher view of a shared proposal — full evaluation"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    # Verify this proposal is shared with the current publisher
+    shared = PublisherProposal.query.filter_by(
+        publisher_id=current_user.id, proposal_id=proposal.id).first()
+    if not shared:
+        flash('You do not have access to this proposal.', 'error')
+        return redirect(url_for('publisher_dashboard'))
+
+    evaluation = json.loads(proposal.evaluation_json) if proposal.evaluation_json else {}
+    if evaluation:
+        compute_advance_estimate(evaluation)
+    return render_template('publisher_proposal.html',
+                         proposal=proposal,
+                         evaluation=evaluation)
+
+
+@app.route('/publisher/forgot-password', methods=['GET', 'POST'])
+def publisher_forgot_password():
+    """Publisher forgot password"""
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        publisher = Publisher.query.filter_by(email=email).first()
+        if publisher:
+            token = publisher.generate_reset_token()
+            db.session.commit()
+
+            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            reset_link = f"{app_url}/publisher/reset-password/{token}"
+            html_content = f"""
+            <html><body style="font-family: Arial, sans-serif; color: #333;">
+                <div style="max-width: 500px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2D1B69;">Password Reset</h2>
+                    <p>Hi {publisher.name},</p>
+                    <p>Click the link below to reset your publisher account password. This link expires in 1 hour.</p>
+                    <p><a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Password</a></p>
+                    <p style="color: #999; font-size: 0.875rem;">If you didn't request this, you can safely ignore this email.</p>
+                </div>
+            </body></html>
+            """
+            try:
+                send_email(email, 'Reset Your Password - Write It Great', html_content)
+            except Exception as e:
+                print(f"Publisher password reset email error: {e}")
+
+        flash('If an account exists with that email, a reset link has been sent.', 'success')
+        return redirect(url_for('publisher_login'))
+
+    return render_template('publisher_forgot_password.html')
+
+
+@app.route('/publisher/reset-password/<token>', methods=['GET', 'POST'])
+def publisher_reset_password(token):
+    """Publisher password reset"""
+    publisher = Publisher.query.filter_by(password_reset_token=token).first()
+    if not publisher or not publisher.verify_reset_token(token):
+        flash('Invalid or expired reset link.', 'error')
+        return redirect(url_for('publisher_forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('publisher_reset_password.html', token=token)
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('publisher_reset_password.html', token=token)
+
+        publisher.set_password(password)
+        publisher.password_reset_token = None
+        publisher.password_reset_expires = None
+        db.session.commit()
+        flash('Password reset successfully. Please log in.', 'success')
+        return redirect(url_for('publisher_login'))
+
+    return render_template('publisher_reset_password.html', token=token)
+
+
+# ============================================================================
 # ADMIN ROUTES
 # ============================================================================
 
@@ -1720,11 +1982,21 @@ def admin_proposal_detail(submission_id):
     if evaluation:
         compute_advance_estimate(evaluation)
     activity = proposal.activity_log.order_by(ProposalNote.created_at.desc()).all()
+
+    # Publisher sharing data
+    shared_publishers = PublisherProposal.query.filter_by(proposal_id=proposal.id).all()
+    available_publishers = Publisher.query.filter_by(is_approved=True, is_active_account=True).order_by(Publisher.name).all()
+    # Exclude already-shared publishers
+    shared_ids = {sp.publisher_id for sp in shared_publishers}
+    available_publishers = [p for p in available_publishers if p.id not in shared_ids]
+
     return render_template('admin_proposal.html',
                          proposal=proposal,
                          evaluation=evaluation,
                          activity=activity,
-                         status_options=STATUS_OPTIONS)
+                         status_options=STATUS_OPTIONS,
+                         shared_publishers=shared_publishers,
+                         available_publishers=available_publishers)
 
 
 @app.route('/admin/proposal/<submission_id>/view-proposal')
@@ -2238,6 +2510,132 @@ def admin_delete_member(user_id):
 
 
 # ============================================================================
+# ADMIN PUBLISHER MANAGEMENT
+# ============================================================================
+
+@app.route('/admin/publishers')
+@team_required
+def admin_publishers():
+    """Manage publisher accounts"""
+    publishers = Publisher.query.order_by(Publisher.created_at.desc()).all()
+    return render_template('admin_publishers.html', publishers=publishers)
+
+
+@app.route('/admin/publishers/<int:publisher_id>/approve', methods=['POST'])
+@team_required
+def admin_approve_publisher(publisher_id):
+    """Approve a pending publisher account"""
+    publisher = Publisher.query.get_or_404(publisher_id)
+    publisher.is_approved = True
+    db.session.commit()
+
+    # Send approval notification email
+    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    html_content = f"""
+    <html><body style="font-family: Arial, sans-serif; color: #333;">
+        <div style="max-width: 500px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2D1B69;">Account Approved</h2>
+            <p>Hi {publisher.name},</p>
+            <p>Your publisher account at Write It Great has been approved! You can now log in to view proposals shared with you.</p>
+            <p><a href="{app_url}/publisher/login" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 8px; font-weight: bold;">Log In Now</a></p>
+        </div>
+    </body></html>
+    """
+    try:
+        send_email(publisher.email, 'Your Publisher Account Has Been Approved - Write It Great', html_content)
+    except Exception as e:
+        print(f"Publisher approval email error: {e}")
+
+    flash(f'{publisher.name} has been approved.', 'success')
+    return redirect(url_for('admin_publishers'))
+
+
+@app.route('/admin/publishers/<int:publisher_id>/toggle-active', methods=['POST'])
+@team_required
+def admin_toggle_publisher_active(publisher_id):
+    """Activate or deactivate a publisher"""
+    publisher = Publisher.query.get_or_404(publisher_id)
+    publisher.is_active_account = not publisher.is_active_account
+    db.session.commit()
+    status = 'activated' if publisher.is_active_account else 'deactivated'
+    flash(f'{publisher.name} has been {status}.', 'success')
+    return redirect(url_for('admin_publishers'))
+
+
+@app.route('/admin/publishers/<int:publisher_id>/delete', methods=['POST'])
+@team_required
+def admin_delete_publisher(publisher_id):
+    """Delete a publisher account and their shared proposal links"""
+    publisher = Publisher.query.get_or_404(publisher_id)
+    name = publisher.name
+    PublisherProposal.query.filter_by(publisher_id=publisher.id).delete()
+    db.session.delete(publisher)
+    db.session.commit()
+    flash(f'{name} has been permanently removed.', 'success')
+    return redirect(url_for('admin_publishers'))
+
+
+@app.route('/admin/proposal/<submission_id>/share', methods=['POST'])
+@team_required
+def admin_share_proposal(submission_id):
+    """Share a proposal with one or more publishers"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    publisher_ids = request.form.getlist('publisher_ids')
+
+    shared_count = 0
+    for pid in publisher_ids:
+        existing = PublisherProposal.query.filter_by(
+            publisher_id=int(pid), proposal_id=proposal.id).first()
+        if not existing:
+            sp = PublisherProposal(
+                publisher_id=int(pid),
+                proposal_id=proposal.id,
+                shared_by=current_user.name if current_user.is_authenticated else 'System'
+            )
+            db.session.add(sp)
+            shared_count += 1
+
+    if shared_count > 0:
+        db.session.commit()
+        # Log the share action
+        note = ProposalNote(
+            proposal_id=proposal.id,
+            user_name=current_user.name if current_user.is_authenticated else 'System',
+            action='shared',
+            content=f'Shared with {shared_count} publisher(s)'
+        )
+        db.session.add(note)
+        db.session.commit()
+        flash(f'Proposal shared with {shared_count} publisher(s).', 'success')
+    else:
+        flash('Proposal is already shared with the selected publisher(s).', 'error')
+
+    return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
+
+
+@app.route('/admin/proposal/<submission_id>/unshare/<int:publisher_id>', methods=['POST'])
+@team_required
+def admin_unshare_proposal(submission_id, publisher_id):
+    """Remove a publisher's access to a proposal"""
+    proposal = Proposal.query.filter_by(submission_id=submission_id).first_or_404()
+    sp = PublisherProposal.query.filter_by(
+        publisher_id=publisher_id, proposal_id=proposal.id).first_or_404()
+    publisher_name = sp.publisher.name
+    db.session.delete(sp)
+
+    note = ProposalNote(
+        proposal_id=proposal.id,
+        user_name=current_user.name if current_user.is_authenticated else 'System',
+        action='unshared',
+        content=f'Removed access for {publisher_name}'
+    )
+    db.session.add(note)
+    db.session.commit()
+    flash(f'Access removed for {publisher_name}.', 'success')
+    return redirect(url_for('admin_proposal_detail', submission_id=submission_id))
+
+
+# ============================================================================
 # DATABASE MIGRATIONS
 # ============================================================================
 
@@ -2315,6 +2713,16 @@ def run_migrations():
         with db.engine.begin() as conn:
             conn.execute(text('ALTER TABLE proposal ADD COLUMN author_id INTEGER'))
             print("Migration: added proposal.author_id")
+
+    # Publisher table (new table for publisher portal)
+    if not inspector.has_table('publisher'):
+        Publisher.__table__.create(db.engine)
+        print("Migration: created publisher table")
+
+    # PublisherProposal table (join table for sharing)
+    if not inspector.has_table('publisher_proposal'):
+        PublisherProposal.__table__.create(db.engine)
+        print("Migration: created publisher_proposal table")
 
 
 # ============================================================================

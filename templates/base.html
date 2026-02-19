@@ -12,7 +12,7 @@
 <body>
     <header>
         <div class="header-content">
-            <a href="{% if current_user.is_authenticated and current_user.is_team_member %}{{ url_for('admin_dashboard') }}{% elif current_user.is_authenticated and current_user.is_author %}{{ url_for('author_dashboard') }}{% else %}{{ url_for('author_login') }}{% endif %}" class="logo-section">
+            <a href="{% if current_user.is_authenticated and current_user.is_team_member %}{{ url_for('admin_dashboard') }}{% elif current_user.is_authenticated and current_user.is_author %}{{ url_for('author_dashboard') }}{% elif current_user.is_authenticated and current_user.is_publisher %}{{ url_for('publisher_dashboard') }}{% else %}{{ url_for('author_login') }}{% endif %}" class="logo-section">
                 <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Write It Great" onerror="this.style.display='none'">
                 <span class="logo-text">Write It Great</span>
             </a>
@@ -23,6 +23,7 @@
                 {% if current_user.is_admin %}
                 <a href="{{ url_for('admin_team') }}">Team</a>
                 {% endif %}
+                <a href="{{ url_for('admin_publishers') }}">Publishers</a>
                 <a href="{{ url_for('admin_logout') }}">Logout</a>
                 <a href="{{ url_for('index') }}" class="btn-accent">Submit Proposal</a>
                 {% elif current_user.is_authenticated and current_user.is_author %}
@@ -30,6 +31,10 @@
                 <a href="{{ url_for('author_dashboard') }}">My Proposals</a>
                 <a href="{{ url_for('author_logout') }}">Logout</a>
                 <a href="{{ url_for('index') }}" class="btn-accent">Submit Proposal</a>
+                {% elif current_user.is_authenticated and current_user.is_publisher %}
+                {# Publisher nav #}
+                <a href="{{ url_for('publisher_dashboard') }}">Shared Proposals</a>
+                <a href="{{ url_for('publisher_logout') }}">Logout</a>
                 {% endif %}
             </nav>
         </div>
@@ -54,6 +59,7 @@
         <p><a href="https://writeitgreat.com">writeitgreat.com</a></p>
         <div class="footer-links">
             <a href="{{ url_for('author_login') }}">Author Login</a>
+            <a href="{{ url_for('publisher_login') }}">Publisher Login</a>
             <a href="{{ url_for('admin_login') }}">Team Login</a>
         </div>
     </footer>
