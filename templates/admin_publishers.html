@@ -1,107 +1,119 @@
 {% extends "base.html" %}
-{% block title %}Publisher Management - Write It Great{% endblock %}
+{% block title %}Publishers - Write It Great{% endblock %}
 {% block content %}
 <section class="dashboard-header">
     <div class="container">
-        <h1>Publisher Management</h1>
+        <h1>Publishers</h1>
         <p>Manage external publisher and editor accounts.</p>
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-number">{{ publishers|length }}</div><div class="stat-label">Total</div></div>
-            <div class="stat-card"><div class="stat-number">{{ publishers|selectattr('is_approved')|list|length }}</div><div class="stat-label">Approved</div></div>
-            <div class="stat-card"><div class="stat-number">{{ publishers|rejectattr('is_approved')|list|length }}</div><div class="stat-label">Pending</div></div>
-            <div class="stat-card"><div class="stat-number">{{ publishers|selectattr('is_active_account')|selectattr('is_approved')|list|length }}</div><div class="stat-label">Active</div></div>
+            <a href="{{ url_for('admin_publishers') }}" class="stat-card"><div class="stat-number">{{ stats.total }}</div><div class="stat-label">Total</div></a>
+            <a href="{{ url_for('admin_publishers', status='active') }}" class="stat-card"><div class="stat-number">{{ stats.active }}</div><div class="stat-label">Active</div></a>
+            <a href="{{ url_for('admin_publishers', status='pending') }}" class="stat-card"><div class="stat-number">{{ stats.pending }}</div><div class="stat-label">Pending</div></a>
+        </div>
+        <div class="dashboard-actions">
+            <a href="{{ url_for('admin_add_publisher') }}" class="btn btn-accent" style="font-size: 0.875rem;">+ Add Publisher</a>
         </div>
     </div>
 </section>
 
+<form method="GET" class="filters-bar">
+    <div class="filter-group">
+        <label for="search">Search:</label>
+        <input type="text" id="search" name="search" value="{{ current_filters.search }}" placeholder="Name, email, company...">
+    </div>
+    <div class="filter-group">
+        <label for="genre">Genre:</label>
+        <select id="genre" name="genre">
+            <option value="">All Genres</option>
+            {% for g in genre_options %}
+            <option value="{{ g }}" {% if current_filters.genre == g %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label for="status">Status:</label>
+        <select id="status" name="status">
+            <option value="">All</option>
+            <option value="active" {% if current_filters.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="pending" {% if current_filters.status == 'pending' %}selected{% endif %}>Pending Approval</option>
+            <option value="deactivated" {% if current_filters.status == 'deactivated' %}selected{% endif %}>Deactivated</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-outline" style="padding: 0.5rem 1rem;">Filter</button>
+    <a href="{{ url_for('admin_publishers') }}" style="padding: 0.5rem 1rem; color: var(--gray-600);">Clear</a>
+</form>
+
 <div class="container" style="padding: 0;">
     {% if publishers %}
-    {% for pub in publishers %}
-    <div class="card" style="margin-bottom: 1rem; padding: 1.25rem; {% if not pub.is_active_account %}opacity: 0.5;{% endif %}">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-            <div style="flex: 1; min-width: 250px;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <strong style="font-size: 1.1rem;">{{ pub.name }}</strong>
-                    {% if not pub.is_approved %}
-                        <span class="status-badge on_hold" style="font-size: 0.6875rem;">Pending Approval</span>
-                    {% elif pub.is_active_account %}
-                        <span class="status-badge offer_received" style="font-size: 0.6875rem;">Active</span>
-                    {% else %}
-                        <span class="status-badge declined" style="font-size: 0.6875rem;">Deactivated</span>
-                    {% endif %}
-                </div>
-
-                <div style="font-size: 0.8125rem; color: var(--gray-600); margin-bottom: 0.25rem;">
-                    {{ pub.email }}
-                    {% if pub.company %}&middot; {{ pub.company }}{% endif %}
-                    {% if pub.website %}&middot; <a href="{{ pub.website }}" target="_blank" style="color: var(--primary);">Website</a>{% endif %}
-                </div>
-
-                <div style="font-size: 0.75rem; color: var(--gray-400);">
-                    Joined {{ pub.created_at.strftime('%b %d, %Y') if pub.created_at else 'N/A' }}
-                    &middot; {{ pub.shared_proposals.count() }} proposal{{ 's' if pub.shared_proposals.count() != 1 else '' }} shared
-                </div>
-
-                {# Profile info — genres & topics #}
-                {% set genres = [] %}
-                {% if pub.preferred_genres %}
-                    {% set genres = pub.preferred_genres | fromjson if pub.preferred_genres else [] %}
-                {% endif %}
-
-                {% if genres or pub.preferred_topics or pub.bio %}
-                <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--gray-100);">
-                    {% if pub.bio %}
-                    <p style="font-size: 0.8125rem; color: var(--gray-600); margin-bottom: 0.5rem; line-height: 1.5;">{{ pub.bio }}</p>
-                    {% endif %}
-
+    <table class="proposals-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Genres</th>
+                <th>Proposals</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pub in publishers %}
+            <tr style="cursor: pointer; {% if not pub.is_active_account %}opacity: 0.5;{% endif %}" onclick="window.location='{{ url_for('admin_publisher_detail', publisher_id=pub.id) }}'">
+                <td class="author-cell">
+                    <div class="author-name">{{ pub.name }}</div>
+                    <div class="author-email">{{ pub.email }}</div>
+                </td>
+                <td><span style="font-size: 0.8125rem; color: var(--gray-600);">{{ pub.company or '—' }}</span></td>
+                <td>
+                    {% set genres = pub.preferred_genres|fromjson if pub.preferred_genres else [] %}
                     {% if genres %}
-                    <div style="margin-bottom: 0.375rem;">
-                        <span style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); font-weight: 600;">Genres:</span>
-                        {% for g in genres %}
-                        <span style="display: inline-block; padding: 0.125rem 0.5rem; background: var(--gray-100); border-radius: 10px; font-size: 0.75rem; color: var(--gray-600); margin: 0.125rem 0;">{{ g }}</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; max-width: 240px;">
+                        {% for g in genres[:3] %}
+                        <span style="display: inline-block; padding: 0.125rem 0.5rem; background: var(--gray-100); border-radius: 10px; font-size: 0.6875rem; color: var(--gray-600); white-space: nowrap;">{{ g }}</span>
                         {% endfor %}
+                        {% if genres|length > 3 %}
+                        <span style="display: inline-block; padding: 0.125rem 0.5rem; background: var(--gray-100); border-radius: 10px; font-size: 0.6875rem; color: var(--gray-400); white-space: nowrap;">+{{ genres|length - 3 }} more</span>
+                        {% endif %}
                     </div>
+                    {% else %}
+                    <span style="font-size: 0.75rem; color: var(--gray-400);">—</span>
                     {% endif %}
-
-                    {% if pub.preferred_topics %}
-                    <div>
-                        <span style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); font-weight: 600;">Topics:</span>
-                        <span style="font-size: 0.8125rem; color: var(--gray-600);">{{ pub.preferred_topics }}</span>
+                </td>
+                <td><span style="font-size: 0.875rem;">{{ pub.shared_proposals.count() }}</span></td>
+                <td>
+                    {% if not pub.is_approved %}
+                        <span class="status-badge on_hold">Pending</span>
+                    {% elif pub.is_active_account %}
+                        <span class="status-badge offer_received">Active</span>
+                    {% else %}
+                        <span class="status-badge declined">Deactivated</span>
+                    {% endif %}
+                </td>
+                <td><span class="submitted-date">{{ pub.created_at.strftime('%b %d, %Y') if pub.created_at else 'N/A' }}</span></td>
+                <td onclick="event.stopPropagation();">
+                    <div class="quick-actions">
+                        <a href="{{ url_for('admin_publisher_detail', publisher_id=pub.id) }}" class="qa-edit">View</a>
+                        {% if not pub.is_approved %}
+                        <form method="POST" action="{{ url_for('admin_approve_publisher', publisher_id=pub.id) }}" style="display: inline;">
+                            <button type="submit" class="qa-restore">Approve</button>
+                        </form>
+                        {% endif %}
                     </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-
-            <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; align-self: flex-start;">
-                {% if not pub.is_approved %}
-                <form method="POST" action="{{ url_for('admin_approve_publisher', publisher_id=pub.id) }}" style="display: inline;">
-                    <button type="submit" class="btn-action btn-action-success" title="Approve account">Approve</button>
-                </form>
-                {% endif %}
-
-                {% if pub.is_active_account %}
-                <form method="POST" action="{{ url_for('admin_toggle_publisher_active', publisher_id=pub.id) }}" style="display: inline;">
-                    <button type="submit" class="btn-action btn-action-warn" title="Deactivate account">Deactivate</button>
-                </form>
-                {% else %}
-                <form method="POST" action="{{ url_for('admin_toggle_publisher_active', publisher_id=pub.id) }}" style="display: inline;">
-                    <button type="submit" class="btn-action btn-action-success" title="Reactivate account">Activate</button>
-                </form>
-                {% endif %}
-
-                <form method="POST" action="{{ url_for('admin_delete_publisher', publisher_id=pub.id) }}" style="display: inline;"
-                      onsubmit="return confirm('Permanently delete {{ pub.name }}? This will also remove all their shared proposal access.');">
-                    <button type="submit" class="btn-action btn-action-danger" title="Delete account">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     {% else %}
-    <div class="empty-state" style="padding: 3rem;">
+    <div class="empty-state">
+        {% if current_filters.search or current_filters.genre or current_filters.status %}
+        <h3>No publishers match your filters</h3>
+        <p>Try adjusting your search or filters. <a href="{{ url_for('admin_publishers') }}" style="color: var(--primary);">Clear all filters</a></p>
+        {% else %}
         <h3>No publishers yet</h3>
-        <p>Publishers can request access at the publisher registration page. You can share the link with them.</p>
+        <p>Publishers can <a href="{{ url_for('publisher_register') }}" style="color: var(--primary);">request access</a>, or you can <a href="{{ url_for('admin_add_publisher') }}" style="color: var(--primary);">add one manually</a>.</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>
