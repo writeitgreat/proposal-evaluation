@@ -55,6 +55,56 @@
                     </div>
                 </div>
             </div>
+            <!-- Marketing Section: Part A — Platform Numbers -->
+            <div class="platform-section">
+                <h3>Help us estimate your reach</h3>
+                <p class="section-hint">Leave blank if not applicable — these help us calculate your publishing potential.</p>
+                <div class="platform-grid">
+                    <div class="platform-field">
+                        <label for="email_list">Email List Size</label>
+                        <input type="number" id="email_list" name="email_list" min="0" placeholder="e.g. 5000">
+                    </div>
+                    <div class="platform-field">
+                        <label for="instagram_followers">Instagram Followers</label>
+                        <input type="number" id="instagram_followers" name="instagram_followers" min="0" placeholder="e.g. 10000">
+                    </div>
+                    <div class="platform-field">
+                        <label for="linkedin_followers">LinkedIn Followers</label>
+                        <input type="number" id="linkedin_followers" name="linkedin_followers" min="0" placeholder="e.g. 2500">
+                    </div>
+                    <div class="platform-field">
+                        <label for="youtube_subscribers">YouTube Subscribers</label>
+                        <input type="number" id="youtube_subscribers" name="youtube_subscribers" min="0" placeholder="e.g. 1000">
+                    </div>
+                    <div class="platform-field">
+                        <label for="tiktok_followers">TikTok Followers</label>
+                        <input type="number" id="tiktok_followers" name="tiktok_followers" min="0" placeholder="e.g. 8000">
+                    </div>
+                    <div class="platform-field">
+                        <label for="podcast_audience">Podcast Audience</label>
+                        <input type="number" id="podcast_audience" name="podcast_audience" min="0" placeholder="e.g. 3000">
+                    </div>
+                    <div class="platform-field">
+                        <label for="speaking_engagements">Speaking Engagements / Year</label>
+                        <input type="number" id="speaking_engagements" name="speaking_engagements" min="0" placeholder="e.g. 12">
+                    </div>
+                    <div class="platform-field">
+                        <label for="avg_audience_per_talk">Avg Audience per Talk</label>
+                        <input type="number" id="avg_audience_per_talk" name="avg_audience_per_talk" min="0" placeholder="e.g. 200">
+                    </div>
+                    <div class="platform-field">
+                        <label for="bulk_orders">Confirmed Bulk Orders</label>
+                        <input type="number" id="bulk_orders" name="bulk_orders" min="0" placeholder="e.g. 500">
+                    </div>
+                </div>
+            </div>
+            <!-- Marketing Section: Part B — Marketing Strategy -->
+            <div class="form-group">
+                <label for="marketing_strategy">Your Marketing Strategy</label>
+                <p class="form-hint">Describe your PR plan, partnerships, speaking calendar, social media approach, and any other marketing activities.</p>
+                <textarea id="marketing_strategy" name="marketing_strategy" rows="6" placeholder="Describe your marketing plan..."></textarea>
+            </div>
+            <input type="hidden" name="platform_data" id="platform_data_json">
             <div class="form-group">
                 <div class="checkbox-group">
                     <input type="checkbox" id="terms_accepted" name="terms_accepted" required>
@@ -160,8 +210,26 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         const existingError = form.querySelector('.error-message');
         if (existingError) existingError.remove();
+
+        // Serialize Part A platform numbers to JSON before submission
+        const parseField = (id) => {
+            const val = document.getElementById(id).value.trim();
+            return val === '' ? null : parseInt(val, 10);
+        };
+        document.getElementById('platform_data_json').value = JSON.stringify({
+            email_list:            parseField('email_list'),
+            instagram_followers:   parseField('instagram_followers'),
+            linkedin_followers:    parseField('linkedin_followers'),
+            youtube_subscribers:   parseField('youtube_subscribers'),
+            tiktok_followers:      parseField('tiktok_followers'),
+            podcast_audience:      parseField('podcast_audience'),
+            speaking_engagements:  parseField('speaking_engagements'),
+            avg_audience_per_talk: parseField('avg_audience_per_talk'),
+            bulk_orders:           parseField('bulk_orders')
+        });
+
         loadingOverlay.classList.remove('hidden');
-        
+
         try {
             const response = await fetch('/api/evaluate', { method: 'POST', body: new FormData(form) });
             const data = await response.json();
