@@ -307,6 +307,10 @@ class Proposal(db.Model):
     author_email_sent = db.Column(db.Boolean, default=False)
     team_email_sent = db.Column(db.Boolean, default=False)
 
+    # Structured platform data from Update 3 form (JSON string)
+    platform_data = db.Column(db.Text)
+    marketing_strategy = db.Column(db.Text)
+
 
 class ProposalNote(db.Model):
     """Activity log entry for a proposal — notes, status changes, etc."""
@@ -614,39 +618,156 @@ def get_tier_description(tier):
     }.get(tier, '')
 
 
-def compute_advance_estimate(evaluation):
-    """Compute advance estimate deterministically from score and tier.
-    Always call this on any evaluation dict to ensure correct ranges."""
-    tier = evaluation.get('tier', 'D')
-    total = evaluation.get('total_score', 0)
-    adv = evaluation.get('advanceEstimate', {})
+def calculate_advance_from_platform(tier, platform_data, marketing_text=''):
+    """
+    Calculate advance estimate from structured platform numbers.
 
-    if tier == 'A':
-        adv['viable'] = True
-        if total >= 93:
-            adv['lowRange'] = 15000
-            adv['highRange'] = 25000
-        else:
-            adv['lowRange'] = 10000
-            adv['highRange'] = 15000
-    elif tier == 'B':
-        adv['viable'] = True
-        if total >= 77:
-            adv['lowRange'] = 5000
-            adv['highRange'] = 10000
-        else:
-            adv['lowRange'] = 0
-            adv['highRange'] = 5000
+    Formula: projected_first_year_copies × $4 royalty / 2 = advance ceiling
+    Conversion rates per channel:
+        email_list            × 3%
+        instagram + tiktok    × 0.7%
+        linkedin              × 1%
+        youtube               × 1.5%
+        podcast               × 2%
+        speaking × avg_audience × 7%
+        bulk_orders           × 1 (direct)
+
+    Tier caps:
+        C / D → $0, not viable
+        B     → capped at $10,000; viable only if ceiling > $2,000
+        A     → floor $10,000, ceiling $250,000
+
+    marketing_text is accepted for future use but is not part of the formula.
+    The internal math is NOT exposed to users — only lowRange/highRange/confidence.
+    """
+    if tier in ('D', 'C'):
+        return {
+            'lowRange': 0,
+            'highRange': 0,
+            'viable': False,
+            'confidence': 'Low',
+            'reasoning': 'Proposal needs significant development before it could attract a traditional publishing advance.'
+        }
+
+    pd = platform_data or {}
+
+    def safe_int(key):
+        val = pd.get(key)
+        if val is None:
+            return None
+        try:
+            v = int(val)
+            return v if v >= 0 else None
+        except (ValueError, TypeError):
+            return None
+
+    email_list   = safe_int('email_list')
+    instagram    = safe_int('instagram_followers')
+    tiktok       = safe_int('tiktok_followers')
+    linkedin     = safe_int('linkedin_followers')
+    youtube      = safe_int('youtube_subscribers')
+    podcast      = safe_int('podcast_audience')
+    speaking     = safe_int('speaking_engagements')
+    avg_audience = safe_int('avg_audience_per_talk')
+    bulk         = safe_int('bulk_orders')
+
+    speaking_valid = (speaking is not None and avg_audience is not None)
+    individual_fields = [email_list, instagram, tiktok, linkedin, youtube, podcast, bulk]
+    populated = sum(1 for f in individual_fields if f is not None) + (1 if speaking_valid else 0)
+
+    # Confidence based on how many fields were filled
+    if populated >= 3:
+        confidence = 'High'
+    elif populated >= 1:
+        confidence = 'Medium'
     else:
-        adv['viable'] = False
-        adv['lowRange'] = 0
-        adv['highRange'] = 0
-        adv['reasoning'] = 'Proposal needs significant development before it could attract a traditional publishing advance.'
+        confidence = 'Low'
+
+    # All-empty fallback — no platform data provided
+    if populated == 0:
+        if tier == 'B':
+            return {
+                'lowRange': 0, 'highRange': 5000, 'viable': True,
+                'confidence': 'Low',
+                'reasoning': 'No platform data provided. Range based on tier assessment alone.'
+            }
+        else:  # A
+            return {
+                'lowRange': 10000, 'highRange': 25000, 'viable': True,
+                'confidence': 'Low',
+                'reasoning': 'No platform data provided. Range based on tier assessment alone.'
+            }
+
+    # Project first-year copy sales
+    copies = 0.0
+    if email_list:       copies += email_list   * 0.03
+    if instagram:        copies += instagram    * 0.007
+    if tiktok:           copies += tiktok       * 0.007
+    if linkedin:         copies += linkedin     * 0.01
+    if youtube:          copies += youtube      * 0.015
+    if podcast:          copies += podcast      * 0.02
+    if speaking_valid:   copies += speaking * avg_audience * 0.07
+    if bulk:             copies += bulk  # 1:1
+
+    total_copies = max(0, int(copies))
+
+    # Publisher formula: advance ceiling = (copies × $4 royalty) / 2
+    ceiling = (total_copies * 4) / 2
+
+    def round_to(n, base):
+        return int(round(n / base) * base)
+
+    if tier == 'B':
+        capped = min(ceiling, 10000)
+        if capped <= 2000:
+            return {
+                'lowRange': 0, 'highRange': 0, 'viable': False,
+                'confidence': confidence,
+                'reasoning': 'Platform reach is not sufficient for a traditional publishing advance at this tier.'
+            }
+        high = round_to(capped, 500)
+        low  = round_to(high * 0.5, 500)
+        return {
+            'lowRange': low, 'highRange': high, 'viable': True,
+            'confidence': confidence,
+            'reasoning': 'Based on estimated first-year platform reach.'
+        }
+    else:  # A tier
+        floored = max(ceiling, 10000)
+        capped  = min(floored, 250000)
+        high = round_to(capped, 1000)
+        low  = max(10000, round_to(high * 0.6, 1000))
+        return {
+            'lowRange': low, 'highRange': high, 'viable': True,
+            'confidence': confidence,
+            'reasoning': 'Based on estimated first-year platform reach.'
+        }
+
+
+def compute_advance_estimate(evaluation):
+    """Compute advance estimate using platform numbers from the evaluation dict.
+    Always call this on any evaluation dict to ensure correct ranges.
+    Expects evaluation['platform_data'] to be set before calling (embedded by
+    process_evaluation_background); falls back gracefully if absent."""
+    tier           = evaluation.get('tier', 'D')
+    platform_data  = evaluation.get('platform_data') or {}
+    marketing_text = evaluation.get('marketing_text', '')
+    adv            = evaluation.get('advanceEstimate') or {}
+
+    result = calculate_advance_from_platform(tier, platform_data, marketing_text)
+
+    adv['lowRange']   = result['lowRange']
+    adv['highRange']  = result['highRange']
+    adv['viable']     = result['viable']
+    adv['confidence'] = result['confidence']
+    # Preserve any AI-generated reasoning unless the proposal is not viable
+    if not adv.get('reasoning') or not result['viable']:
+        adv['reasoning'] = result['reasoning']
 
     evaluation['advanceEstimate'] = adv
     evaluation['advance_estimate'] = {
-        'low': adv.get('lowRange', 0),
-        'high': adv.get('highRange', 0),
+        'low':   adv['lowRange'],
+        'high':  adv['highRange'],
         'notes': adv.get('reasoning', '')
     }
     return evaluation
@@ -668,7 +789,8 @@ Your evaluation style:
 - Be specific and cite examples from the actual proposal text
 - Provide actionable feedback that authors can implement immediately
 - Be encouraging but honest about weaknesses
-- Think like a publisher evaluating commercial viability"""
+- Think like a publisher evaluating commercial viability
+- Score distribution: use the full 0-100 range meaningfully. A score of 50 means average, 70 means solid, 85+ means exceptional. If your scores for different sections all fall within a 10-point range of each other, you are not differentiating enough — push yourself to find what truly excels and what truly needs work."""
 
     user_prompt = f"""{evaluation_focus}
 
@@ -774,7 +896,9 @@ Provide your evaluation as a JSON object with this EXACT structure:
         "reasoning": "<2-3 sentences explaining the estimate>"
     }},
 
-    "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"]
+    "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"],
+
+    "contradictions": ["<full-sentence description of a cross-section inconsistency a real editor would notice — e.g., 'Marketing plan promises 50 speaking engagements annually but the credentials section lists no prior speaking history.' Leave array empty if none found.>"]
 }}
 
 SCORING GUIDELINES:
@@ -786,6 +910,21 @@ SCORING GUIDELINES:
 IMPORTANT SCORING RULES:
 1. Score each category in multiples of 5 (e.g. 60, 65, 70, 75, 80, 85, 90, 95). Never use scores like 72 or 83.
 2. Your scores MUST align with the tier. If a proposal deserves a B, score it 70-84. If it deserves a C, score it 60-69. Do NOT give a score of 70 and call it C-tier - that would be B-tier.
+3. Differentiate meaningfully: a weak section on an otherwise strong proposal should score 40-55, not 65. Do not cluster all scores within 15 points of each other — identify what truly excels and what truly needs work and score accordingly.
+
+COMPARATIVE TITLES ("comps") SCORING RUBRIC:
+When scoring the comps category, explicitly check all three of the following:
+- Recency: Are the comps published within the last 5 years? Titles older than 5 years are a red flag — flag them and reduce the score.
+- Genre and audience alignment: Are the comps in the same genre and targeting the same readership as this book? Mismatched comps signal the author does not understand the market.
+- Platform-to-comp-sales alignment: Do the cited comp sales figures match the author's current platform size? If the author has fewer than 5,000 combined followers/subscribers but cites books that sold 500,000+ copies, score this 30-45 and explain in the gaps field that editors immediately reject this framing — strong comps should reflect realistic sales given the author's reach, not aspirational outliers.
+
+CROSS-SECTION CONSISTENCY (the contradictions field):
+After completing all section scores, scan for contradictions between sections that a real editor would notice. Write each as a concrete, specific sentence. Examples of what to look for:
+- Marketing plan promises a large number of speaking engagements but credentials list no prior speaking history
+- Comparative titles all sold 200K+ copies but the author's platform has no demonstrated reach
+- Author claims deep niche expertise in credentials but the overview targets a mass-market general audience
+- Writing sample quality is inconsistent with the professional credentials claimed
+If no meaningful contradictions exist, return an empty array. Do not manufacture contradictions.
 
 ADVANCE ESTIMATE: The advance ranges will be calculated automatically. For the advanceEstimate field, just provide your reasoning about commercial viability. Set lowRange and highRange to 0 — they will be overridden by the system.
 
@@ -1086,7 +1225,8 @@ def send_team_notification(proposal):
 # BACKGROUND PROCESSING
 # ============================================================================
 
-def process_evaluation_background(app_obj, submission_id, proposal_text, proposal_type, author_name='', book_title=''):
+def process_evaluation_background(app_obj, submission_id, proposal_text, proposal_type,
+                                   author_name='', book_title='', platform_data=None):
     """Run OpenAI evaluation and email notifications in a background thread"""
     with app_obj.app_context():
         try:
@@ -1117,7 +1257,12 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 print(f"Background eval: OpenAI evaluation failed for {submission_id}")
                 return
 
-            # Always recompute advance estimate (fixes cached results with stale ranges)
+            # Embed platform data so the advance calculator (and all downstream loaders)
+            # can access it from evaluation_json without touching the Proposal model.
+            evaluation['platform_data'] = platform_data or {}
+            evaluation['marketing_text'] = proposal.marketing_strategy or ''
+
+            # Always recompute advance estimate using the current submission's platform data
             compute_advance_estimate(evaluation)
 
             proposal.tier = evaluation.get('tier', 'C')
@@ -1240,6 +1385,16 @@ def api_evaluate():
         book_title = request.form.get('book_title', '').strip()
         proposal_type = request.form.get('proposal_type', 'full')
 
+        # Extract structured platform numbers (Part A) and marketing strategy (Part B)
+        platform_data_raw = request.form.get('platform_data', '').strip()
+        marketing_strategy = request.form.get('marketing_strategy', '').strip()
+        platform_data_dict = {}
+        if platform_data_raw:
+            try:
+                platform_data_dict = json.loads(platform_data_raw)
+            except (json.JSONDecodeError, ValueError):
+                platform_data_dict = {}
+
         if not all([author_name, author_email, book_title]):
             return jsonify({'success': False, 'error': 'Please fill in all required fields.'})
 
@@ -1276,7 +1431,9 @@ def api_evaluate():
             proposal_text=proposal_text[:50000],
             original_filename=original_filename,
             original_file=file_bytes,
-            status='processing'
+            status='processing',
+            platform_data=platform_data_raw if platform_data_raw else None,
+            marketing_strategy=marketing_strategy if marketing_strategy else None,
         )
 
         db.session.add(proposal)
@@ -1285,7 +1442,8 @@ def api_evaluate():
         # Run evaluation in background thread to avoid Heroku 30s timeout
         thread = threading.Thread(
             target=process_evaluation_background,
-            args=(app, proposal.submission_id, proposal_text, proposal_type, author_name, book_title)
+            args=(app, proposal.submission_id, proposal_text, proposal_type, author_name, book_title,
+                  platform_data_dict)
         )
         thread.daemon = True
         thread.start()

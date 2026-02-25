@@ -69,6 +69,14 @@
 .red-flags li { padding: 6px 0 6px 24px; position: relative; color: #991B1B; }
 .red-flags li::before { content: '\26A0'; position: absolute; left: 0; }
 
+/* Consistency Flags */
+.consistency-flags { background: #FFFBEB; border: 1px solid #F59E0B; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+.consistency-flags h3 { color: #B45309; font-size: 1rem; margin-bottom: 6px; }
+.consistency-flags .cf-subtitle { font-size: 0.85rem; color: #92400E; margin-bottom: 12px; }
+.consistency-flags ul { list-style: none; padding: 0; margin: 0; }
+.consistency-flags li { padding: 7px 0 7px 26px; position: relative; color: #78350F; line-height: 1.5; font-size: 0.95rem; }
+.consistency-flags li::before { content: '\26A1'; position: absolute; left: 0; color: #F59E0B; }
+
 /* Section Headers */
 .section-header { font-size: 1.2rem; color: #1E1E2E; margin: 30px 0 15px; padding-bottom: 10px; border-bottom: 2px solid #2D1B69; }
 .executive-summary { line-height: 1.8; color: #2D2D3F; font-size: 1.05rem; }
@@ -213,6 +221,7 @@
     {% set adv_est = evaluation.get('advanceEstimate', {}) %}
     {% set adv_old = evaluation.get('advance_estimate', {}) %}
     {% set next_steps = evaluation.get('recommendedNextSteps', []) or evaluation.get('next_steps', []) %}
+    {% set contradictions = evaluation.get('contradictions', []) %}
     {% set old_categories = evaluation.get('categories', {}) %}
 
     <div class="results-card">
@@ -259,6 +268,19 @@
             <ul>
                 {% for flag in red_flags %}
                 <li>{{ flag|replace('_', ' ')|title }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Consistency Flags -->
+        {% if contradictions and contradictions|length > 0 %}
+        <div class="consistency-flags">
+            <h3>Consistency Flags</h3>
+            <p class="cf-subtitle">These are cross-section observations a real editor would notice — not score deductions, but issues worth addressing before submission.</p>
+            <ul>
+                {% for flag in contradictions %}
+                <li>{{ flag }}</li>
                 {% endfor %}
             </ul>
         </div>
