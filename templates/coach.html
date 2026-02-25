@@ -1,0 +1,617 @@
+{% extends "base.html" %}
+{% block title %}Guided Proposal Builder — Write It Great{% endblock %}
+
+{% block extra_css %}
+/* ── Coach page ─────────────────────────────────────── */
+.coach-wrap { max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+/* Book-info bar */
+.coach-book-bar {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+.coach-book-bar.two-col { grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) { .coach-book-bar.two-col { grid-template-columns: 1fr; } }
+.coach-book-bar label { display: block; font-weight: 600; font-size: 0.8125rem; color: var(--primary); margin-bottom: 0.3rem; }
+.coach-book-bar input, .coach-book-bar select {
+    width: 100%; padding: 0.625rem 0.875rem;
+    border: 2px solid var(--gray-200); border-radius: var(--radius);
+    font-size: 0.9375rem; font-family: inherit;
+    transition: border-color 0.2s;
+}
+.coach-book-bar input:focus, .coach-book-bar select:focus { outline: none; border-color: var(--primary); }
+
+/* Progress */
+.coach-progress { margin-bottom: 1.5rem; }
+.progress-label { font-size: 0.8125rem; font-weight: 600; color: var(--gray-600); margin-bottom: 0.5rem; display: flex; justify-content: space-between; }
+.progress-bar-outer { height: 8px; background: var(--gray-200); border-radius: 99px; overflow: hidden; margin-bottom: 1rem; }
+.progress-bar-inner { height: 100%; background: var(--accent-dark); border-radius: 99px; transition: width 0.4s ease; }
+.step-dots { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+.step-dot {
+    display: flex; align-items: center; gap: 0.375rem;
+    font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.6rem;
+    border-radius: 99px; cursor: pointer; transition: all 0.2s;
+    border: 1.5px solid var(--gray-300); color: var(--gray-500); background: white;
+}
+.step-dot.done { background: #dcfce7; border-color: #86efac; color: #166534; }
+.step-dot.active { background: var(--primary); border-color: var(--primary); color: white; }
+.step-dot:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+
+/* Step card */
+.step-card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.step-card-header { background: var(--primary); color: white; padding: 1.25rem 1.5rem; }
+.step-card-header .step-eyebrow { font-size: 0.75rem; opacity: 0.75; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem; }
+.step-card-header h2 { color: white; font-size: 1.25rem; margin: 0; }
+.step-card-body { padding: 1.5rem; }
+.step-instruction { font-size: 0.9375rem; color: var(--gray-600); line-height: 1.65; margin-bottom: 1.25rem; border-left: 3px solid var(--accent-dark); padding-left: 0.875rem; }
+.step-instruction strong { color: var(--primary); }
+
+/* Textareas */
+.coach-textarea {
+    width: 100%; padding: 0.875rem 1rem;
+    border: 2px solid var(--gray-200); border-radius: var(--radius);
+    font-size: 0.9375rem; font-family: inherit; line-height: 1.6;
+    resize: vertical; transition: border-color 0.2s;
+    min-height: 140px;
+}
+.coach-textarea:focus { outline: none; border-color: var(--primary); }
+.word-count { font-size: 0.75rem; color: var(--gray-500); margin-top: 0.3rem; text-align: right; }
+
+/* Platform grid (step 7) */
+.coach-platform-section { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+.coach-platform-section h4 { color: var(--primary); font-size: 0.9375rem; margin-bottom: 0.25rem; }
+.coach-platform-section .hint { font-size: 0.8125rem; color: var(--gray-500); margin-bottom: 1rem; }
+.coach-platform-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+@media (max-width: 600px) { .coach-platform-grid { grid-template-columns: 1fr; } }
+@media (min-width: 601px) and (max-width: 820px) { .coach-platform-grid { grid-template-columns: repeat(2, 1fr); } }
+.coach-pfield label { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--primary); margin-bottom: 0.3rem; }
+.coach-pfield input[type="number"] {
+    width: 100%; padding: 0.625rem 0.875rem;
+    border: 2px solid var(--gray-200); border-radius: var(--radius);
+    font-size: 0.875rem; font-family: inherit; background: white;
+    transition: border-color 0.2s;
+}
+.coach-pfield input[type="number"]:focus { outline: none; border-color: var(--primary); }
+
+/* Feedback area */
+.feedback-wrap { margin-top: 1rem; }
+.feedback-card {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 1px solid #86efac; border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+}
+.feedback-card h4 { color: #166534; font-size: 0.875rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; }
+.feedback-card ul { list-style: none; margin: 0; padding: 0; }
+.feedback-card li { padding: 0.45rem 0 0.45rem 1.25rem; position: relative; font-size: 0.9375rem; color: #1a3a1a; line-height: 1.55; }
+.feedback-card li::before { content: '›'; position: absolute; left: 0; color: var(--accent-dark); font-weight: 700; }
+.feedback-spinner { display: flex; align-items: center; gap: 0.625rem; color: var(--gray-500); font-size: 0.9rem; padding: 0.75rem 0; }
+.feedback-spinner .spin { width: 18px; height: 18px; border: 2px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.feedback-error { background: #fee2e2; border: 1px solid #fca5a5; border-radius: var(--radius); padding: 0.75rem 1rem; color: #991b1b; font-size: 0.9rem; margin-top: 0.75rem; }
+
+/* Action row */
+.step-actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; }
+.btn-feedback {
+    padding: 0.6rem 1.125rem; border-radius: var(--radius);
+    background: var(--gray-100); border: 1.5px solid var(--gray-300);
+    color: var(--gray-700); font-weight: 600; font-size: 0.875rem;
+    cursor: pointer; transition: all 0.2s;
+}
+.btn-feedback:hover { background: var(--gray-200); border-color: var(--gray-400); }
+.btn-feedback:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Nav buttons */
+.step-nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border-top: 1px solid var(--gray-100); margin-top: 0; }
+.btn-back { background: transparent; border: 2px solid var(--gray-300); color: var(--gray-600); padding: 0.65rem 1.25rem; border-radius: var(--radius); font-weight: 600; cursor: pointer; font-size: 0.9375rem; transition: all 0.2s; }
+.btn-back:hover { border-color: var(--primary); color: var(--primary); }
+.btn-back:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-next { background: var(--accent); color: var(--accent-text); border: none; padding: 0.65rem 1.5rem; border-radius: var(--radius); font-weight: 700; cursor: pointer; font-size: 0.9375rem; transition: all 0.2s; }
+.btn-next:hover { background: var(--accent-dark); }
+.btn-submit-all { background: var(--primary); color: white; border: none; padding: 0.75rem 1.75rem; border-radius: var(--radius); font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.2s; }
+.btn-submit-all:hover { background: var(--primary-light); }
+.btn-submit-all:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Loading overlay */
+.coach-overlay { position: fixed; inset: 0; background: rgba(45,27,105,0.93); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; color: white; }
+.coach-overlay .big-spin { width: 56px; height: 56px; border: 4px solid rgba(184,242,184,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1.25rem; }
+.coach-overlay p { font-size: 1.125rem; font-weight: 500; }
+.coach-overlay small { opacity: 0.75; margin-top: 0.5rem; }
+.hidden { display: none !important; }
+{% endblock %}
+
+{% block content %}
+<div class="coach-wrap">
+
+    <div style="margin-bottom:1.25rem;">
+        <h1 style="color:var(--primary);font-size:1.5rem;margin-bottom:0.25rem;">Guided Proposal Builder</h1>
+        <p style="color:var(--gray-600);font-size:0.9375rem;">Complete each section one at a time. Get instant AI feedback before moving on.</p>
+    </div>
+
+    <!-- Book info -->
+    <div class="coach-book-bar" id="book-bar">
+        <div>
+            <label for="coach-title">Book Title *</label>
+            <input type="text" id="coach-title" placeholder="The title of your book" autocomplete="off">
+        </div>
+    </div>
+    {% if not (current_user.is_authenticated and current_user.is_author) %}
+    <div class="coach-book-bar two-col" style="margin-top:-0.75rem;">
+        <div>
+            <label for="coach-name">Your Full Name *</label>
+            <input type="text" id="coach-name" placeholder="Jane Smith">
+        </div>
+        <div>
+            <label for="coach-email">Email Address *</label>
+            <input type="email" id="coach-email" placeholder="jane@example.com">
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Progress -->
+    <div class="coach-progress">
+        <div class="progress-label">
+            <span id="progress-text">Step 1 of 7</span>
+            <span id="progress-pct">0% complete</span>
+        </div>
+        <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar" style="width:0%"></div></div>
+        <div class="step-dots" id="step-dots"></div>
+    </div>
+
+    <!-- Step card -->
+    <div class="step-card" id="step-card">
+        <div class="step-card-header">
+            <div class="step-eyebrow" id="card-eyebrow">Step 1 of 7</div>
+            <h2 id="card-title"></h2>
+        </div>
+        <div class="step-card-body">
+            <p class="step-instruction" id="card-instruction"></p>
+
+            <!-- Standard textarea (hidden for step 7) -->
+            <div id="standard-input">
+                <textarea class="coach-textarea" id="section-textarea" rows="8" placeholder=""></textarea>
+                <div class="word-count" id="word-count">0 words</div>
+            </div>
+
+            <!-- Step 7: Marketing platform grid + strategy textarea -->
+            <div id="marketing-input" class="hidden">
+                <div class="coach-platform-section">
+                    <h4>Your Platform Numbers</h4>
+                    <p class="hint">Leave blank if not applicable — these feed directly into the advance calculator.</p>
+                    <div class="coach-platform-grid">
+                        <div class="coach-pfield"><label>Email List Size</label><input type="number" id="p-email" min="0" placeholder="e.g. 5000"></div>
+                        <div class="coach-pfield"><label>Instagram Followers</label><input type="number" id="p-instagram" min="0" placeholder="e.g. 10000"></div>
+                        <div class="coach-pfield"><label>LinkedIn Followers</label><input type="number" id="p-linkedin" min="0" placeholder="e.g. 2500"></div>
+                        <div class="coach-pfield"><label>YouTube Subscribers</label><input type="number" id="p-youtube" min="0" placeholder="e.g. 1000"></div>
+                        <div class="coach-pfield"><label>TikTok Followers</label><input type="number" id="p-tiktok" min="0" placeholder="e.g. 8000"></div>
+                        <div class="coach-pfield"><label>Podcast Audience</label><input type="number" id="p-podcast" min="0" placeholder="e.g. 3000"></div>
+                        <div class="coach-pfield"><label>Speaking Engagements / Year</label><input type="number" id="p-speaking" min="0" placeholder="e.g. 12"></div>
+                        <div class="coach-pfield"><label>Avg Audience per Talk</label><input type="number" id="p-avg-audience" min="0" placeholder="e.g. 200"></div>
+                        <div class="coach-pfield"><label>Confirmed Bulk Orders</label><input type="number" id="p-bulk" min="0" placeholder="e.g. 500"></div>
+                    </div>
+                </div>
+                <label style="display:block;font-weight:600;color:var(--primary);margin-bottom:0.5rem;">Your Marketing Strategy</label>
+                <p style="font-size:0.875rem;color:var(--gray-500);margin-bottom:0.75rem;">Describe your PR plan, partnerships, speaking calendar, social media approach, and any other marketing activities.</p>
+                <textarea class="coach-textarea" id="marketing-textarea" rows="7" placeholder="Describe your marketing plan..."></textarea>
+                <div class="word-count" id="marketing-word-count">0 words</div>
+            </div>
+
+            <!-- Feedback button -->
+            <div class="step-actions">
+                <button class="btn-feedback" id="btn-feedback">Get AI Feedback</button>
+            </div>
+
+            <!-- Feedback display -->
+            <div class="feedback-wrap" id="feedback-wrap"></div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="step-nav">
+            <button class="btn-back" id="btn-back" disabled>&#8592; Back</button>
+            <button class="btn-next" id="btn-next">Continue &#8594;</button>
+            <button class="btn-submit-all hidden" id="btn-submit">Submit Full Proposal for Evaluation</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- Loading overlay -->
+<div class="coach-overlay hidden" id="coach-overlay">
+    <div class="big-spin"></div>
+    <p>Evaluating your full proposal...</p>
+    <small>This takes 30–60 seconds</small>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    /* ── Step definitions ─────────────────────────────── */
+    const STEPS = [
+        {
+            id: 'hook',
+            title: 'Book Hook',
+            instruction: 'Write your book\'s central idea in <strong>1–2 compelling sentences</strong>. Think of what you\'d say at a cocktail party when someone asks "What\'s your book about?" A great hook names the topic, the audience it serves, and why it matters <em>right now</em>.',
+            placeholder: 'e.g. "The Focused Leader is a practical guide for mid-level managers who are drowning in meetings — showing them how to reclaim 10 hours a week using the same attention-management systems used by Fortune 500 CEOs."',
+            minWords: 10,
+            rows: 4
+        },
+        {
+            id: 'audience',
+            title: 'Target Audience',
+            instruction: 'Describe your <strong>ideal reader</strong> in specific, concrete terms. Include their situation, what they\'re struggling with, and what they\'re hoping to find. Avoid "everyone" — the more specific you are, the more an editor trusts you understand your market.',
+            placeholder: 'e.g. "My primary reader is a woman in her 30s–40s who has been promoted into management for the first time and feels completely unprepared..."',
+            minWords: 30,
+            rows: 6
+        },
+        {
+            id: 'credentials',
+            title: 'Author Credentials',
+            instruction: 'Explain <strong>why you are the right person</strong> to write this book. Include your professional background, relevant experience, speaking history, published work, media appearances, and platform numbers (email list size, social followers, etc.).',
+            placeholder: 'e.g. "I am a certified executive coach who has worked with over 200 managers at companies including Google, Salesforce, and Shopify..."',
+            minWords: 50,
+            rows: 7
+        },
+        {
+            id: 'comps',
+            title: 'Comparative Titles',
+            instruction: 'List <strong>3–5 books published in the last 5 years</strong> that share your audience or approach. For each, note why your book is similar AND how it is different. These help editors understand your market and position your book within it.',
+            placeholder: 'e.g. "1. Deep Work by Cal Newport (2016) — Similar: productivity for knowledge workers. Different: my book focuses specifically on managers, not individual contributors..."',
+            minWords: 60,
+            rows: 8
+        },
+        {
+            id: 'outline',
+            title: 'Chapter Outline',
+            instruction: 'List your <strong>proposed chapters</strong> with a 1–2 sentence description of each. The outline should tell a logical story — each chapter building toward the book\'s central promise. Include a brief description of the Introduction and Conclusion.',
+            placeholder: 'Introduction: Why managers are failing and what this book offers.\nChapter 1: The Meeting Trap — ...\nChapter 2: ...',
+            minWords: 80,
+            rows: 10
+        },
+        {
+            id: 'writing',
+            title: 'Sample Writing',
+            instruction: 'Paste <strong>500–1,000 words</strong> of your best prose from the book. Choose a passage that best represents your voice and demonstrates the quality of the full manuscript. This is what an editor will read to decide if they want to keep going.',
+            placeholder: 'Paste your sample writing here...',
+            minWords: 100,
+            rows: 14
+        },
+        {
+            id: 'marketing',
+            title: 'Marketing & Platform',
+            instruction: 'Enter your platform numbers above, then describe your marketing plan below. Include <strong>specific, concrete activities</strong> — speaking engagements, podcast appearances, newsletter campaigns, partnerships, and any confirmed bulk orders. Platform numbers feed directly into the advance calculator.',
+            placeholder: '',
+            minWords: 0,
+            rows: 7
+        }
+    ];
+
+    const STORAGE_KEY = 'wig_coach_v1';
+
+    /* ── State ────────────────────────────────────────── */
+    let currentStep = 0;
+    let sections = {};      // { hook: "...", audience: "...", ... }
+    let platformData = {};  // numeric platform fields (step 7)
+    let feedbackCache = {}; // { stepId: [bullets] }
+    let completed = new Set();
+
+    /* ── DOM refs ─────────────────────────────────────── */
+    const progressText  = document.getElementById('progress-text');
+    const progressPct   = document.getElementById('progress-pct');
+    const progressBar   = document.getElementById('progress-bar');
+    const stepDots      = document.getElementById('step-dots');
+    const cardEyebrow   = document.getElementById('card-eyebrow');
+    const cardTitle     = document.getElementById('card-title');
+    const cardInstr     = document.getElementById('card-instruction');
+    const stdInput      = document.getElementById('standard-input');
+    const mktInput      = document.getElementById('marketing-input');
+    const textarea      = document.getElementById('section-textarea');
+    const mktTextarea   = document.getElementById('marketing-textarea');
+    const wordCount     = document.getElementById('word-count');
+    const mktWordCount  = document.getElementById('marketing-word-count');
+    const feedbackWrap  = document.getElementById('feedback-wrap');
+    const btnFeedback   = document.getElementById('btn-feedback');
+    const btnBack       = document.getElementById('btn-back');
+    const btnNext       = document.getElementById('btn-next');
+    const btnSubmit     = document.getElementById('btn-submit');
+    const overlay       = document.getElementById('coach-overlay');
+
+    /* ── Persist / restore ────────────────────────────── */
+    function save() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                sections, platformData, completed: [...completed], currentStep,
+                title: document.getElementById('coach-title').value,
+                name:  document.getElementById('coach-name')  ? document.getElementById('coach-name').value  : '',
+                email: document.getElementById('coach-email') ? document.getElementById('coach-email').value : ''
+            }));
+        } catch (_) {}
+    }
+
+    function restore() {
+        try {
+            const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            if (d.sections)      sections      = d.sections;
+            if (d.platformData)  platformData  = d.platformData;
+            if (Array.isArray(d.completed)) completed = new Set(d.completed);
+            if (d.title) document.getElementById('coach-title').value = d.title;
+            if (d.name  && document.getElementById('coach-name'))  document.getElementById('coach-name').value  = d.name;
+            if (d.email && document.getElementById('coach-email')) document.getElementById('coach-email').value = d.email;
+            if (typeof d.currentStep === 'number') currentStep = d.currentStep;
+        } catch (_) {}
+    }
+
+    /* ── Render helpers ───────────────────────────────── */
+    function countWords(str) {
+        return (str || '').trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    function renderMarkdown(text) {
+        return text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function buildDots() {
+        stepDots.innerHTML = '';
+        STEPS.forEach((s, i) => {
+            const dot = document.createElement('button');
+            dot.className = 'step-dot' + (completed.has(s.id) ? ' done' : '') + (i === currentStep ? ' active' : '');
+            dot.textContent = (completed.has(s.id) ? '✓ ' : '') + s.title;
+            dot.onclick = () => { saveCurrentInput(); goTo(i); };
+            stepDots.appendChild(dot);
+        });
+    }
+
+    function updateProgress() {
+        const pct = Math.round((completed.size / STEPS.length) * 100);
+        progressText.textContent = `Step ${currentStep + 1} of ${STEPS.length}`;
+        progressPct.textContent  = `${pct}% complete`;
+        progressBar.style.width  = `${pct}%`;
+        buildDots();
+    }
+
+    function showFeedback(bullets) {
+        if (!bullets || !bullets.length) { feedbackWrap.innerHTML = ''; return; }
+        const items = bullets.map(b => `<li>${renderMarkdown(b)}</li>`).join('');
+        feedbackWrap.innerHTML = `
+            <div class="feedback-card">
+                <h4>AI Feedback</h4>
+                <ul>${items}</ul>
+            </div>`;
+    }
+
+    function showFeedbackSpinner() {
+        feedbackWrap.innerHTML = `
+            <div class="feedback-spinner">
+                <div class="spin"></div> Analyzing your writing…
+            </div>`;
+    }
+
+    function showFeedbackError(msg) {
+        feedbackWrap.innerHTML = `<div class="feedback-error">${msg}</div>`;
+    }
+
+    /* ── Save current step input into state ───────────── */
+    function saveCurrentInput() {
+        const step = STEPS[currentStep];
+        if (step.id === 'marketing') {
+            sections.marketing = mktTextarea.value;
+            platformData = {
+                email_list:            numOrNull('p-email'),
+                instagram_followers:   numOrNull('p-instagram'),
+                linkedin_followers:    numOrNull('p-linkedin'),
+                youtube_subscribers:   numOrNull('p-youtube'),
+                tiktok_followers:      numOrNull('p-tiktok'),
+                podcast_audience:      numOrNull('p-podcast'),
+                speaking_engagements:  numOrNull('p-speaking'),
+                avg_audience_per_talk: numOrNull('p-avg-audience'),
+                bulk_orders:           numOrNull('p-bulk')
+            };
+        } else {
+            sections[step.id] = textarea.value;
+        }
+    }
+
+    function numOrNull(id) {
+        const v = document.getElementById(id).value.trim();
+        return v === '' ? null : parseInt(v, 10);
+    }
+
+    /* ── Render a step ────────────────────────────────── */
+    function goTo(index) {
+        currentStep = Math.max(0, Math.min(STEPS.length - 1, index));
+        const step = STEPS[currentStep];
+        const isLast = currentStep === STEPS.length - 1;
+
+        cardEyebrow.textContent  = `Step ${currentStep + 1} of ${STEPS.length}`;
+        cardTitle.textContent    = step.title;
+        cardInstr.innerHTML      = step.instruction;
+        feedbackWrap.innerHTML   = '';
+
+        if (step.id === 'marketing') {
+            stdInput.classList.add('hidden');
+            mktInput.classList.remove('hidden');
+            // Restore marketing values
+            mktTextarea.value = sections.marketing || '';
+            if (platformData) {
+                const map = { 'p-email': 'email_list', 'p-instagram': 'instagram_followers',
+                    'p-linkedin': 'linkedin_followers', 'p-youtube': 'youtube_subscribers',
+                    'p-tiktok': 'tiktok_followers', 'p-podcast': 'podcast_audience',
+                    'p-speaking': 'speaking_engagements', 'p-avg-audience': 'avg_audience_per_talk',
+                    'p-bulk': 'bulk_orders' };
+                Object.entries(map).forEach(([elId, key]) => {
+                    const el = document.getElementById(elId);
+                    if (el) el.value = platformData[key] != null ? platformData[key] : '';
+                });
+            }
+            mktWordCount.textContent = countWords(mktTextarea.value) + ' words';
+        } else {
+            stdInput.classList.remove('hidden');
+            mktInput.classList.add('hidden');
+            textarea.value       = sections[step.id] || '';
+            textarea.placeholder = step.placeholder;
+            textarea.rows        = step.rows || 8;
+            wordCount.textContent = countWords(textarea.value) + ' words';
+        }
+
+        // Show cached feedback if any
+        if (feedbackCache[step.id]) showFeedback(feedbackCache[step.id]);
+
+        // Buttons
+        btnBack.disabled = (currentStep === 0);
+        if (isLast) {
+            btnNext.classList.add('hidden');
+            btnSubmit.classList.remove('hidden');
+        } else {
+            btnNext.classList.remove('hidden');
+            btnSubmit.classList.add('hidden');
+        }
+
+        updateProgress();
+        save();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    /* ── Word count live ──────────────────────────────── */
+    textarea.addEventListener('input', () => {
+        wordCount.textContent = countWords(textarea.value) + ' words';
+    });
+    mktTextarea.addEventListener('input', () => {
+        mktWordCount.textContent = countWords(mktTextarea.value) + ' words';
+    });
+
+    /* ── Get Feedback ─────────────────────────────────── */
+    btnFeedback.addEventListener('click', async () => {
+        saveCurrentInput();
+        const step = STEPS[currentStep];
+        const text = step.id === 'marketing' ? mktTextarea.value : textarea.value;
+        if (!text.trim()) {
+            showFeedbackError('Please write something in this section first.');
+            return;
+        }
+        btnFeedback.disabled = true;
+        showFeedbackSpinner();
+        try {
+            const resp = await fetch('/api/coach-feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    section:    step.id,
+                    text:       text,
+                    book_title: (document.getElementById('coach-title') || {}).value || '',
+                    book_hook:  sections.hook || ''
+                })
+            });
+            const data = await resp.json();
+            if (data.success && data.bullets) {
+                feedbackCache[step.id] = data.bullets;
+                showFeedback(data.bullets);
+            } else {
+                showFeedbackError(data.error || 'Could not get feedback. Please try again.');
+            }
+        } catch (e) {
+            showFeedbackError('Network error. Please try again.');
+        } finally {
+            btnFeedback.disabled = false;
+        }
+    });
+
+    /* ── Navigation ───────────────────────────────────── */
+    btnBack.addEventListener('click', () => {
+        saveCurrentInput();
+        goTo(currentStep - 1);
+    });
+
+    btnNext.addEventListener('click', () => {
+        saveCurrentInput();
+        const step = STEPS[currentStep];
+        completed.add(step.id);
+        goTo(currentStep + 1);
+    });
+
+    /* ── Final submission ─────────────────────────────── */
+    btnSubmit.addEventListener('click', async () => {
+        saveCurrentInput();
+
+        const titleEl = document.getElementById('coach-title');
+        const nameEl  = document.getElementById('coach-name');
+        const emailEl = document.getElementById('coach-email');
+        const title   = titleEl ? titleEl.value.trim() : '';
+        const name    = nameEl  ? nameEl.value.trim()  : '';
+        const email   = emailEl ? emailEl.value.trim() : '';
+
+        if (!title) { titleEl && titleEl.focus(); alert('Please enter your book title.'); return; }
+        if (nameEl  && !name)  { nameEl.focus();  alert('Please enter your name.');  return; }
+        if (emailEl && !email) { emailEl.focus(); alert('Please enter your email.'); return; }
+
+        // Assemble proposal text
+        const sectionLabels = [
+            ['BOOK HOOK',          sections.hook        || ''],
+            ['TARGET AUDIENCE',    sections.audience    || ''],
+            ['AUTHOR CREDENTIALS', sections.credentials || ''],
+            ['COMPARATIVE TITLES', sections.comps       || ''],
+            ['CHAPTER OUTLINE',    sections.outline     || ''],
+            ['SAMPLE WRITING',     sections.writing     || ''],
+            ['MARKETING STRATEGY', sections.marketing   || '']
+        ];
+        const assembledText = [
+            `BOOK PROPOSAL`,
+            `Title: ${title}`,
+            '',
+            ...sectionLabels.flatMap(([label, text]) => [label, '-'.repeat(label.length), text || '(Not provided)', ''])
+        ].join('\n');
+
+        if (assembledText.trim().length < 500) {
+            alert('Please complete at least a few sections before submitting your full proposal.');
+            return;
+        }
+
+        // Build FormData
+        const blob = new Blob([assembledText], { type: 'text/plain' });
+        const file = new File([blob], 'coached_proposal.txt', { type: 'text/plain' });
+        const fd   = new FormData();
+        fd.append('proposal_file',    file);
+        fd.append('book_title',       title);
+        fd.append('proposal_type',    'full');
+        fd.append('terms_accepted',   'on');
+        fd.append('platform_data',    JSON.stringify(platformData));
+        fd.append('marketing_strategy', sections.marketing || '');
+        if (name)  fd.append('author_name',  name);
+        if (email) fd.append('author_email', email);
+
+        overlay.classList.remove('hidden');
+        btnSubmit.disabled = true;
+
+        try {
+            const resp = await fetch('/api/evaluate', { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (data.success && data.proposal_id) {
+                // Clear saved state on successful submission
+                localStorage.removeItem(STORAGE_KEY);
+                {% if current_user.is_authenticated and current_user.is_team_member %}
+                window.location.href = '/results/' + data.proposal_id;
+                {% else %}
+                window.location.href = '/author/proposal/' + data.proposal_id;
+                {% endif %}
+            } else {
+                overlay.classList.add('hidden');
+                btnSubmit.disabled = false;
+                alert(data.error || 'Submission failed. Please try again.');
+            }
+        } catch (e) {
+            overlay.classList.add('hidden');
+            btnSubmit.disabled = false;
+            alert('Network error. Please try again.');
+        }
+    });
+
+    /* ── Boot ─────────────────────────────────────────── */
+    restore();
+    goTo(currentStep);
+})();
+</script>
+{% endblock %}
