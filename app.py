@@ -789,7 +789,8 @@ Your evaluation style:
 - Be specific and cite examples from the actual proposal text
 - Provide actionable feedback that authors can implement immediately
 - Be encouraging but honest about weaknesses
-- Think like a publisher evaluating commercial viability"""
+- Think like a publisher evaluating commercial viability
+- Score distribution: use the full 0-100 range meaningfully. A score of 50 means average, 70 means solid, 85+ means exceptional. If your scores for different sections all fall within a 10-point range of each other, you are not differentiating enough — push yourself to find what truly excels and what truly needs work."""
 
     user_prompt = f"""{evaluation_focus}
 
@@ -895,7 +896,9 @@ Provide your evaluation as a JSON object with this EXACT structure:
         "reasoning": "<2-3 sentences explaining the estimate>"
     }},
 
-    "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"]
+    "recommendedNextSteps": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"],
+
+    "contradictions": ["<full-sentence description of a cross-section inconsistency a real editor would notice — e.g., 'Marketing plan promises 50 speaking engagements annually but the credentials section lists no prior speaking history.' Leave array empty if none found.>"]
 }}
 
 SCORING GUIDELINES:
@@ -907,6 +910,21 @@ SCORING GUIDELINES:
 IMPORTANT SCORING RULES:
 1. Score each category in multiples of 5 (e.g. 60, 65, 70, 75, 80, 85, 90, 95). Never use scores like 72 or 83.
 2. Your scores MUST align with the tier. If a proposal deserves a B, score it 70-84. If it deserves a C, score it 60-69. Do NOT give a score of 70 and call it C-tier - that would be B-tier.
+3. Differentiate meaningfully: a weak section on an otherwise strong proposal should score 40-55, not 65. Do not cluster all scores within 15 points of each other — identify what truly excels and what truly needs work and score accordingly.
+
+COMPARATIVE TITLES ("comps") SCORING RUBRIC:
+When scoring the comps category, explicitly check all three of the following:
+- Recency: Are the comps published within the last 5 years? Titles older than 5 years are a red flag — flag them and reduce the score.
+- Genre and audience alignment: Are the comps in the same genre and targeting the same readership as this book? Mismatched comps signal the author does not understand the market.
+- Platform-to-comp-sales alignment: Do the cited comp sales figures match the author's current platform size? If the author has fewer than 5,000 combined followers/subscribers but cites books that sold 500,000+ copies, score this 30-45 and explain in the gaps field that editors immediately reject this framing — strong comps should reflect realistic sales given the author's reach, not aspirational outliers.
+
+CROSS-SECTION CONSISTENCY (the contradictions field):
+After completing all section scores, scan for contradictions between sections that a real editor would notice. Write each as a concrete, specific sentence. Examples of what to look for:
+- Marketing plan promises a large number of speaking engagements but credentials list no prior speaking history
+- Comparative titles all sold 200K+ copies but the author's platform has no demonstrated reach
+- Author claims deep niche expertise in credentials but the overview targets a mass-market general audience
+- Writing sample quality is inconsistent with the professional credentials claimed
+If no meaningful contradictions exist, return an empty array. Do not manufacture contradictions.
 
 ADVANCE ESTIMATE: The advance ranges will be calculated automatically. For the advanceEstimate field, just provide your reasoning about commercial viability. Set lowRange and highRange to 0 — they will be overridden by the system.
 
