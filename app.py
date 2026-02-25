@@ -773,7 +773,8 @@ def compute_advance_estimate(evaluation):
     return evaluation
 
 
-def evaluate_proposal(proposal_text, proposal_type='full', author_name='', book_title=''):
+def evaluate_proposal(proposal_text, proposal_type='full', author_name='', book_title='',
+                      platform_data=None):
     """Evaluate proposal using OpenAI with comprehensive analysis"""
 
     if proposal_type == 'marketing_only':
@@ -792,12 +793,35 @@ Your evaluation style:
 - Think like a publisher evaluating commercial viability
 - Score distribution: use the full 0-100 range meaningfully. A score of 50 means average, 70 means solid, 85+ means exceptional. If your scores for different sections all fall within a 10-point range of each other, you are not differentiating enough — push yourself to find what truly excels and what truly needs work."""
 
+    # Build a human-readable platform data block (only include populated fields)
+    pd = platform_data or {}
+    def _pv(key): return pd.get(key)
+    platform_lines = []
+    if _pv('email_list'):          platform_lines.append(f"  Email list: {_pv('email_list'):,}")
+    if _pv('instagram_followers'): platform_lines.append(f"  Instagram followers: {_pv('instagram_followers'):,}")
+    if _pv('linkedin_followers'):  platform_lines.append(f"  LinkedIn followers: {_pv('linkedin_followers'):,}")
+    if _pv('youtube_subscribers'): platform_lines.append(f"  YouTube subscribers: {_pv('youtube_subscribers'):,}")
+    if _pv('tiktok_followers'):    platform_lines.append(f"  TikTok followers: {_pv('tiktok_followers'):,}")
+    if _pv('podcast_audience'):    platform_lines.append(f"  Podcast audience: {_pv('podcast_audience'):,}")
+    if _pv('speaking_engagements') and _pv('avg_audience_per_talk'):
+        platform_lines.append(f"  Speaking: {_pv('speaking_engagements')} engagements/year, avg {_pv('avg_audience_per_talk'):,} audience")
+    if _pv('bulk_orders'):         platform_lines.append(f"  Confirmed bulk orders: {_pv('bulk_orders'):,}")
+    if platform_lines:
+        platform_block = ("VERIFIED AUTHOR PLATFORM DATA (structured input submitted alongside the proposal —\n"
+                          "use this when evaluating the credibility of marketing claims and when checking\n"
+                          "comp/sales alignment; do NOT flag claims as unrealistic if the platform numbers\n"
+                          "below support them):\n" + "\n".join(platform_lines))
+    else:
+        platform_block = "VERIFIED AUTHOR PLATFORM DATA: None provided."
+
     user_prompt = f"""{evaluation_focus}
 
 Evaluate this book proposal comprehensively.
 
 AUTHOR: {author_name}
 BOOK TITLE: {book_title}
+
+{platform_block}
 
 PROPOSAL TEXT:
 {proposal_text[:50000]}
@@ -809,7 +833,7 @@ Provide your evaluation as a JSON object with this EXACT structure:
 {{
     "executiveSummary": "<3-5 sentence executive summary of strengths and areas for improvement>",
 
-    "redFlags": ["<list critical issues like: no_platform, weak_credentials, oversaturated_market, poor_writing_quality, incomplete_proposal, unrealistic_claims, no_clear_audience, derivative_concept>"],
+    "redFlags": ["<each entry must be a complete explanatory sentence describing a specific problem and why it matters to a publisher — e.g. 'The author cites no verifiable platform numbers, which makes it impossible for a publisher to assess the book's commercial reach.' or 'The comparative titles are all 10+ years old, suggesting the author has not researched the current market.' Do NOT use code slugs or one-word labels. Return an empty array if there are no genuine red flags.>"],
 
     "scores": {{
         "marketing": {{"score": <0-100>, "weight": 30}},
@@ -1249,7 +1273,8 @@ def process_evaluation_background(app_obj, submission_id, proposal_text, proposa
                 evaluation = json.loads(cached.evaluation_json)
                 print(f"Background eval: using cached result for {submission_id} (matched {cached.submission_id})")
             else:
-                evaluation = evaluate_proposal(proposal_text, proposal_type, author_name, book_title)
+                evaluation = evaluate_proposal(proposal_text, proposal_type, author_name, book_title,
+                                               platform_data=platform_data)
 
             if not evaluation:
                 proposal.status = 'error'
