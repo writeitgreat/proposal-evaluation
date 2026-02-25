@@ -1481,11 +1481,6 @@ def api_coach_chat():
 @app.route('/api/coach-feedback', methods=['POST'])
 def api_coach_feedback():
     """Return AI bullet-point feedback for a single coaching section."""
-
-
-@app.route('/api/coach-feedback', methods=['POST'])
-def api_coach_feedback():
-    """Return AI bullet-point feedback for a single coaching section."""
     try:
         data = request.get_json(force=True) or {}
         section    = data.get('section', '').strip()
