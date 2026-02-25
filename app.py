@@ -3044,6 +3044,12 @@ def run_migrations():
         if 'is_archived' not in proposal_cols:
             conn.execute(text('ALTER TABLE proposal ADD COLUMN is_archived BOOLEAN DEFAULT FALSE'))
             print("Migration: added proposal.is_archived")
+        if 'platform_data' not in proposal_cols:
+            conn.execute(text('ALTER TABLE proposal ADD COLUMN platform_data TEXT'))
+            print("Migration: added proposal.platform_data")
+        if 'marketing_strategy' not in proposal_cols:
+            conn.execute(text('ALTER TABLE proposal ADD COLUMN marketing_strategy TEXT'))
+            print("Migration: added proposal.marketing_strategy")
 
     # AdminUser table migrations
     admin_cols = [col['name'] for col in inspector.get_columns('admin_user')]
