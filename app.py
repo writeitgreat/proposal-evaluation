@@ -1393,6 +1393,103 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/coach')
+def coach():
+    """Guided proposal builder — walk authors through each section step by step."""
+    if not current_user.is_authenticated:
+        return redirect(url_for('author_login'))
+    return render_template('coach.html')
+
+
+@app.route('/api/coach-feedback', methods=['POST'])
+def api_coach_feedback():
+    """Return AI bullet-point feedback for a single coaching section."""
+    try:
+        data = request.get_json(force=True) or {}
+        section    = data.get('section', '').strip()
+        text       = data.get('text', '').strip()
+        book_title = data.get('book_title', '').strip()
+        book_hook  = data.get('book_hook', '').strip()
+
+        if not text or len(text) < 10:
+            return jsonify({'success': False, 'error': 'Please write something before requesting feedback.'})
+
+        section_guides = {
+            'hook': (
+                'Book Hook',
+                'Is the central idea crystal clear in 1-2 sentences? Does it immediately tell an editor what the book is about, who it\'s for, and why it matters now? Is it compelling and specific enough to stand out in a crowded market?'
+            ),
+            'audience': (
+                'Target Audience',
+                'Is the ideal reader described with real specificity (age, profession, situation, mindset)? Does it avoid vague phrases like "anyone who..." or "everyone"? Does it demonstrate understanding of an actual buying audience with clear market size?'
+            ),
+            'credentials': (
+                'Author Credentials',
+                'Does this establish clear authority to write this book? Does it mention measurable platform (followers, email list, speaking history, media appearances)? Does it explain why this author — and not someone else — should write this book?'
+            ),
+            'comps': (
+                'Comparative Titles',
+                'Are the comp titles published within the last 5 years? Are they in the same genre targeting the same reader? Do the cited comp sales figures align with the author\'s current platform size? Would an editor see these as realistic benchmarks, not aspirational outliers?'
+            ),
+            'outline': (
+                'Chapter Outline',
+                'Does the structure tell a logical story from beginning to end? Is each chapter\'s purpose and contribution to the arc clear? Does the sequence build momentum and deliver on the hook\'s promise?'
+            ),
+            'writing': (
+                'Sample Writing',
+                'Does the voice clearly match the intended reader? Is the quality strong enough that an editor would keep reading past the first paragraph? Is the sample in the 500-1,000 word range expected for a book proposal?'
+            ),
+            'marketing': (
+                'Marketing & Platform',
+                'Does the plan describe specific, concrete activities — not just "social media" or "word of mouth"? Are platform numbers cited? Is there a credible path to the first 1,000 buyers? Does the author\'s reach align with what their proposed comp titles actually sold?'
+            ),
+        }
+
+        label, guide = section_guides.get(section, ('Section', 'Evaluate this section of the book proposal.'))
+
+        context_parts = []
+        if book_title:
+            context_parts.append(f'Book: "{book_title}"')
+        if book_hook and section != 'hook':
+            context_parts.append(f'Hook: "{book_hook}"')
+        context_line = ('Context — ' + ', '.join(context_parts) + '.\n') if context_parts else ''
+
+        prompt = f"""You are a literary agent with 25+ years of experience reviewing nonfiction book proposals.
+{context_line}
+The author has written the following for their "{label}" section:
+---
+{text[:3000]}
+---
+
+Evaluate this using these criteria: {guide}
+
+Give exactly 3-5 specific, actionable bullet points. Each bullet must:
+- Start with a short bold label: **Strong:**, **Missing:**, **Improve:**, **Add:**, or **Watch out:**
+- Reference something specific from what they actually wrote
+- Tell them exactly what to keep, add, or change — no generic advice
+
+Return a JSON object with a single key "bullets" containing an array of strings.
+Example: {{"bullets": ["**Strong:** Your opening sentence immediately names the reader...", "**Missing:** You do not mention your publishing credentials..."]}}"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+            max_tokens=600
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        bullets = result.get('bullets', [])
+        if not isinstance(bullets, list):
+            bullets = []
+        return jsonify({'success': True, 'bullets': bullets[:5]})
+
+    except Exception as e:
+        print(f"/api/coach-feedback error: {e}")
+        return jsonify({'success': False, 'error': 'Could not generate feedback. Please try again.'})
+
+
 @app.route('/api/evaluate', methods=['POST'])
 def api_evaluate():
     """Handle proposal submission and evaluation"""
@@ -1438,6 +1535,10 @@ def api_evaluate():
             file_bytes = file.read()
             file.seek(0)
             proposal_text = extract_text_from_docx(file)
+        elif filename.endswith('.txt'):
+            # Plain-text submissions from the guided coaching builder
+            file_bytes = file.read()
+            proposal_text = file_bytes.decode('utf-8', errors='ignore')
         else:
             return jsonify({'success': False, 'error': 'Please upload a PDF or Word document.'})
 
