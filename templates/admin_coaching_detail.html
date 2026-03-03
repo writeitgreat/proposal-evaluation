@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Coaching: {{ enrollment.author.name }} — Admin{% endblock %}
+
+{% block extra_css %}
+.detail-header { background: var(--primary); color: white; padding: 1.5rem 2rem; }
+.detail-header h1 { color: var(--accent); font-size: 1.125rem; margin: 0 0 0.2rem; }
+.detail-header p  { color: rgba(255,255,255,0.7); font-size: 0.875rem; margin: 0; }
+
+.prog-bar { height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+
+/* ── Module accordion ──────────────────────────────────── */
+.module-block { border: 1.5px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; margin-bottom: 0.875rem; }
+.module-block-header {
+    padding: 0.875rem 1rem; display: flex; align-items: center; gap: 0.75rem;
+    cursor: pointer; background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200); user-select: none;
+}
+.module-block-header:hover { background: var(--gray-100); }
+.module-block-header .mod-icon { font-size: 1.25rem; }
+.module-block-header .mod-info { flex: 1; min-width: 0; }
+.module-block-header .mod-title { font-weight: 700; font-size: 0.9rem; color: var(--gray-900); }
+.module-block-header .mod-sub   { font-size: 0.8rem; color: var(--gray-500); }
+.mod-status-badge { font-size: 0.725rem; font-weight: 600; padding: 0.2rem 0.55rem; border-radius: 20px; white-space: nowrap; }
+.mod-status-badge.approved  { background: #dcfce7; color: #166534; }
+.mod-status-badge.in_progress { background: #ede9fe; color: #4c1d95; }
+.mod-status-badge.revision_requested { background: #fef9c3; color: #854d0e; }
+.mod-status-badge.locked    { background: var(--gray-100); color: var(--gray-400); }
+.accordion-arrow { font-size: 0.75rem; color: var(--gray-400); transition: transform 0.2s; }
+.module-block-body { padding: 1rem; display: none; }
+.module-block-body.open { display: block; }
+
+/* ── Submission card ───────────────────────────────────── */
+.submission-card { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 1rem; margin-bottom: 0.75rem; }
+.submission-meta { font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem; }
+.submission-content { background: white; border: 1px solid var(--gray-200); border-radius: 6px; padding: 0.75rem; font-size: 0.875rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
+.ai-feedback { background: #f0f9ff; border-left: 3px solid #38bdf8; padding: 0.75rem; border-radius: 0 6px 6px 0; margin-top: 0.75rem; font-size: 0.875rem; line-height: 1.6; white-space: pre-wrap; }
+.admin-feedback { background: #fffbeb; border-left: 3px solid #fbbf24; padding: 0.75rem; border-radius: 0 6px 6px 0; margin-top: 0.5rem; font-size: 0.875rem; line-height: 1.6; white-space: pre-wrap; }
+
+/* ── Chat transcript ───────────────────────────────────── */
+.chat-transcript { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); }
+.tr-msg { padding: 0.5rem 0.75rem; border-radius: 10px; font-size: 0.8125rem; line-height: 1.55; white-space: pre-wrap; max-width: 85%; }
+.tr-msg.user      { background: var(--primary); color: white; align-self: flex-end; border-radius: 10px 2px 10px 10px; }
+.tr-msg.assistant { background: white; border: 1px solid var(--gray-200); align-self: flex-start; border-radius: 2px 10px 10px 10px; }
+.tr-meta { font-size: 0.7rem; color: var(--gray-400); margin-bottom: 1px; }
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="detail-header">
+    <div style="max-width:1000px;margin:0 auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+            <a href="{{ url_for('admin_coaching_list') }}" style="color:rgba(255,255,255,0.7);font-size:0.875rem;text-decoration:none;">← All Enrollments</a>
+            <span class="mod-status-badge {{ enrollment.status }}" style="font-size:0.8rem;">{{ enrollment.status | title }}</span>
+        </div>
+        <h1>{{ enrollment.author.name }}</h1>
+        <p>{{ enrollment.author.email }}
+            {% if enrollment.book_title %} &nbsp;·&nbsp; <em>{{ enrollment.book_title }}</em>{% endif %}
+            &nbsp;·&nbsp; Enrolled {{ enrollment.enrolled_at.strftime('%B %d, %Y') if enrollment.enrolled_at else '—' }}
+        </p>
+
+        <!-- Progress -->
+        <div style="margin-top:1rem;max-width:480px;">
+            <div style="display:flex;justify-content:space-between;font-size:0.8125rem;color:rgba(255,255,255,0.8);margin-bottom:0.4rem;">
+                <span>{{ completed_count }}/{{ total_modules }} modules complete</span>
+                <span>{{ ((completed_count / total_modules) * 100) | int }}%</span>
+            </div>
+            <div class="prog-bar">
+                <div class="prog-fill" style="width:{{ ((completed_count / total_modules) * 100) | int }}%"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Module accordion -->
+<div class="container" style="max-width:1000px;margin-top:1.5rem;margin-bottom:3rem;">
+
+    {% for item in module_data %}
+    {% set m  = item.module %}
+    {% set mp = item.progress %}
+    {% set is_open = (mp.status in ('in_progress', 'revision_requested')) %}
+
+    <div class="module-block">
+        <div class="module-block-header" onclick="toggleModule(this)">
+            <div class="mod-icon">{{ m.icon }}</div>
+            <div class="mod-info">
+                <div class="mod-title">Module {{ m.order }}: {{ m.title }}</div>
+                <div class="mod-sub">{{ m.subtitle }}</div>
+            </div>
+            <span class="mod-status-badge {{ mp.status }}">
+                {% if mp.status == 'approved' %}✓ Complete
+                {% elif mp.status == 'in_progress' %}In Progress
+                {% elif mp.status == 'revision_requested' %}Revision Needed
+                {% else %}Locked{% endif %}
+            </span>
+            {% if mp.status != 'locked' %}
+            <span style="font-size:0.75rem;color:var(--gray-400);">{{ item.submissions|length }} submission{{ 's' if item.submissions|length != 1 }}</span>
+            {% endif %}
+            <span class="accordion-arrow">▼</span>
+        </div>
+        <div class="module-block-body {{ 'open' if is_open }}">
+
+            <!-- Unlock / override button -->
+            {% if mp.status in ('locked', 'revision_requested') %}
+            <div style="margin-bottom:1rem;">
+                <form method="POST" action="{{ url_for('admin_coaching_unlock_module', enrollment_id=enrollment.id, module_order=m.order) }}"
+                      onsubmit="return confirm('Manually unlock Module {{ m.order }} for {{ enrollment.author.name }}?')">
+                    <button type="submit" class="btn" style="font-size:0.8125rem;padding:0.4rem 0.875rem;background:var(--primary);color:white;border:none;cursor:pointer;border-radius:var(--radius);">
+                        🔓 {% if mp.status == 'revision_requested' %}Override & Unlock Anyway{% else %}Unlock This Module{% endif %}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Homework submissions -->
+            {% if item.submissions %}
+            <h4 style="font-size:0.875rem;color:var(--gray-700);margin:0 0 0.75rem;">Homework Submissions</h4>
+            {% for sub in item.submissions %}
+            <div class="submission-card">
+                <div class="submission-meta">
+                    Submission #{{ sub.revision_number }} &nbsp;·&nbsp;
+                    {{ sub.submitted_at.strftime('%b %d, %Y at %H:%M') if sub.submitted_at else '—' }}
+                    &nbsp;·&nbsp;
+                    <span class="mod-status-badge {{ sub.status }}" style="vertical-align:middle;">
+                        {% if sub.status == 'approved' %}✓ Approved{% elif sub.status == 'revision_requested' %}Revision Needed{% else %}Pending{% endif %}
+                    </span>
+                </div>
+                <details>
+                    <summary style="cursor:pointer;font-size:0.8125rem;color:var(--primary);margin-bottom:0.5rem;">View submitted text</summary>
+                    <div class="submission-content">{{ sub.content }}</div>
+                </details>
+                {% if sub.ai_feedback %}
+                <div style="margin-top:0.5rem;">
+                    <div style="font-size:0.75rem;font-weight:600;color:#0369a1;margin-bottom:0.25rem;">AI Feedback</div>
+                    <div class="ai-feedback">{{ sub.ai_feedback }}</div>
+                </div>
+                {% endif %}
+                {% if sub.admin_feedback %}
+                <div style="margin-top:0.5rem;">
+                    <div style="font-size:0.75rem;font-weight:600;color:#b45309;margin-bottom:0.25rem;">Admin Feedback (by {{ sub.admin_reviewed_by or 'Team' }})</div>
+                    <div class="admin-feedback">{{ sub.admin_feedback }}</div>
+                </div>
+                {% endif %}
+
+                <!-- Admin review form (only for latest, non-approved submission) -->
+                {% if loop.first and sub.status != 'approved' %}
+                <details style="margin-top:0.75rem;">
+                    <summary style="cursor:pointer;font-size:0.8125rem;color:var(--primary);font-weight:600;">Add Admin Review</summary>
+                    <form method="POST" action="{{ url_for('admin_coaching_review_homework', enrollment_id=enrollment.id, submission_id=sub.id) }}"
+                          style="margin-top:0.75rem;">
+                        <textarea name="admin_feedback" rows="3" placeholder="Your feedback…"
+                                  style="width:100%;padding:0.625rem;border:1.5px solid var(--gray-200);border-radius:var(--radius);font-size:0.875rem;font-family:inherit;box-sizing:border-box;resize:vertical;">{{ sub.admin_feedback or '' }}</textarea>
+                        <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                            <button type="submit" name="action" value="approve"
+                                    class="btn" style="background:#16a34a;color:white;border:none;padding:0.45rem 1rem;border-radius:var(--radius);cursor:pointer;font-size:0.8125rem;">
+                                ✓ Approve & Unlock Next
+                            </button>
+                            <button type="submit" name="action" value="request_revision"
+                                    class="btn" style="background:#d97706;color:white;border:none;padding:0.45rem 1rem;border-radius:var(--radius);cursor:pointer;font-size:0.8125rem;">
+                                Request Revision
+                            </button>
+                        </div>
+                    </form>
+                </details>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="font-size:0.875rem;color:var(--gray-400);margin:0 0 1rem;">No homework submitted yet.</p>
+            {% endif %}
+
+            <!-- Chat transcript -->
+            {% if item.chats %}
+            <details style="margin-top:0.5rem;">
+                <summary style="cursor:pointer;font-size:0.8125rem;color:var(--gray-600);font-weight:600;">
+                    Chat Transcript ({{ item.chats|length }} messages)
+                </summary>
+                <div class="chat-transcript" style="margin-top:0.75rem;">
+                    {% for msg in item.chats %}
+                    <div>
+                        <div class="tr-meta">{{ msg.role | title }} &nbsp;·&nbsp; {{ msg.created_at.strftime('%b %d, %H:%M') if msg.created_at else '' }}</div>
+                        <div class="tr-msg {{ msg.role }}">{{ msg.content }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+
+{% block extra_js %}
+<script>
+function toggleModule(header) {
+    const body  = header.nextElementSibling;
+    const arrow = header.querySelector('.accordion-arrow');
+    const open  = body.classList.toggle('open');
+    if (arrow) arrow.style.transform = open ? 'rotate(180deg)' : '';
+}
+// Auto-open current/revision modules
+document.querySelectorAll('.module-block-body.open').forEach(body => {
+    const arrow = body.previousElementSibling.querySelector('.accordion-arrow');
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+});
+</script>
+{% endblock %}
+{% endblock %}

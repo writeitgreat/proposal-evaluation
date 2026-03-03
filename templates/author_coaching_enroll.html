@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Enroll in Coaching — Write It Great{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:640px;padding-top:3rem;padding-bottom:3rem;">
+    <a href="{{ url_for('author_coaching_dashboard') }}" style="color:var(--gray-500);font-size:0.875rem;text-decoration:none;">← Back</a>
+    <div class="card" style="margin-top:1.25rem;">
+        <h2 style="color:var(--primary);margin-bottom:0.25rem;">Start the Coaching Program</h2>
+        <p style="color:var(--gray-500);margin-bottom:1.5rem;font-size:0.9375rem;">You'll work through 7 modules, each focused on a key section of your book proposal. The AI coach will guide you, and you'll submit homework that gets reviewed before you advance.</p>
+
+        <form method="POST" action="{{ url_for('author_coaching_enroll') }}">
+            <div class="form-group">
+                <label for="book_title" class="form-label">Working book title <span style="color:var(--gray-400);font-weight:400;">(optional — you can add this later)</span></label>
+                <input type="text" id="book_title" name="book_title" class="form-input"
+                       placeholder="e.g. The Quiet Leader" maxlength="500" autocomplete="off">
+            </div>
+
+            <div style="background:var(--gray-50);border-radius:var(--radius);padding:1rem 1.25rem;margin:1.25rem 0;font-size:0.875rem;color:var(--gray-600);line-height:1.7;">
+                <strong style="color:var(--gray-800);">What you'll get:</strong>
+                <ul style="margin:0.5rem 0 0;padding-left:1.25rem;">
+                    <li>7 structured modules, unlocking one by one as you complete each</li>
+                    <li>An AI coach available in every module for conversation and guidance</li>
+                    <li>Homework reviewed with specific, actionable feedback</li>
+                    <li>Email updates at every milestone</li>
+                    <li>A complete, publisher-ready proposal at the end</li>
+                </ul>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:0.875rem;font-size:1rem;">
+                Enroll &amp; Start Module 1 →
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
