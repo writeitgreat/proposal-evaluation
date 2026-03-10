@@ -2,299 +2,643 @@
 {% block title %}Module {{ module_info.order }}: {{ module_info.title }} — Write It Great{% endblock %}
 
 {% block extra_css %}
-.module-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 1.5rem 1rem;
-    align-items: start;
-}
-@media (max-width: 820px) { .module-layout { grid-template-columns: 1fr; } }
-
-.module-header {
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+/* ── Module header ─────────────────────────────────────── */
+.mod-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+    padding: 1.25rem 2rem 1.5rem;
     color: white;
-    padding: 1.5rem 2rem;
     border-bottom: 3px solid var(--accent);
 }
-.module-header h2 { color: var(--accent); margin: 0 0 .25rem; font-size: 1.125rem; }
-.module-header p  { margin: 0; color: rgba(255,255,255,0.8); font-size: .9rem; }
-.module-breadcrumb { font-size: .8125rem; color: rgba(255,255,255,0.6); margin-bottom: .5rem; }
+.mod-header-inner { max-width: 1100px; margin: 0 auto; }
+.mod-breadcrumb { font-size: 0.8125rem; color: rgba(255,255,255,0.6); margin-bottom: 0.75rem; }
+.mod-breadcrumb a { color: rgba(255,255,255,0.8); text-decoration: none; }
+.mod-breadcrumb a:hover { color: white; }
+.mod-title-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.mod-big-icon { font-size: 2rem; }
+.mod-title-text h1 { color: var(--accent); font-size: 1.2rem; margin: 0 0 0.15rem; }
+.mod-title-text p  { color: rgba(255,255,255,0.75); font-size: 0.875rem; margin: 0; }
 
-/* Chat pane */
-.chat-pane { display: flex; flex-direction: column; height: 620px; }
-.chat-messages {
-    flex: 1; overflow-y: auto; padding: 1rem;
-    display: flex; flex-direction: column; gap: .75rem;
-    background: #fafafa; border-radius: var(--radius) var(--radius) 0 0;
-    border: 1.5px solid var(--gray-200); border-bottom: none;
+/* ── Stepper ───────────────────────────────────────────── */
+.mod-stepper {
+    display: flex; align-items: center; margin-top: 1rem;
+    background: rgba(255,255,255,0.08); border-radius: var(--radius);
+    padding: 0.45rem 0.75rem; overflow-x: auto; max-width: 580px; gap: 0;
 }
-.chat-bubble {
-    max-width: 82%; padding: .75rem 1rem;
-    border-radius: 1rem; font-size: .9rem; line-height: 1.5; white-space: pre-wrap;
+.step-dot {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700;
 }
-.bubble-user      { background: var(--primary); color: white; align-self: flex-end; border-radius: 1rem 1rem 0 1rem; }
-.bubble-assistant { background: white; color: #333; border: 1px solid var(--gray-200); align-self: flex-start; border-radius: 1rem 1rem 1rem 0; }
-.chat-input-row {
-    display: flex; gap: .5rem; padding: .75rem;
-    border: 1.5px solid var(--gray-200); border-top: none;
-    border-radius: 0 0 var(--radius) var(--radius);
+.step-dot.done    { background: var(--accent); color: var(--accent-text); }
+.step-dot.current { background: white; color: var(--primary); }
+.step-dot.todo    { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.55); }
+.step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.18); min-width: 10px; max-width: 28px; }
+.step-line.done-line { background: var(--accent); }
+
+/* ── Two-column layout ─────────────────────────────────── */
+.mod-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    max-width: 1100px;
+    margin: 1.5rem auto;
+    padding: 0 1rem 3rem;
+    align-items: start;
+}
+@media(min-width: 900px) {
+    .mod-layout { grid-template-columns: 1fr 340px; }
+}
+
+/* ── Writing panel (main) ──────────────────────────────── */
+.writing-panel { display: flex; flex-direction: column; gap: 1rem; }
+
+.context-card {
+    background: white; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius); overflow: hidden;
+}
+.context-card summary {
+    padding: 0.75rem 1rem; cursor: pointer; user-select: none;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.875rem; font-weight: 600; color: var(--primary);
+    background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+    list-style: none;
+}
+.context-card summary::-webkit-details-marker { display: none; }
+.context-card[open] summary { border-bottom-color: var(--gray-200); }
+.context-card .context-body {
+    padding: 1rem; font-size: 0.875rem; color: var(--gray-700); line-height: 1.7;
+}
+.context-card .context-body .tip-block {
+    background: #f0f9ff; border-left: 3px solid #38bdf8;
+    padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin-top: 0.75rem;
+    font-size: 0.8125rem; line-height: 1.65;
+}
+
+.writing-card {
+    background: white; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius); overflow: hidden;
+}
+.writing-card-header {
+    padding: 0.875rem 1rem; background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+}
+.writing-card-header h2 { margin: 0; font-size: 1rem; color: var(--primary); flex: 1; }
+.save-indicator { font-size: 0.75rem; color: var(--gray-400); display: flex; align-items: center; gap: 0.3rem; }
+.save-indicator.saving { color: #d97706; }
+.save-indicator.saved  { color: #16a34a; }
+
+.writing-guide {
+    margin: 0.875rem 1rem 0;
+    padding: 0.75rem 1rem; background: var(--gray-50);
+    border-left: 3px solid var(--primary); border-radius: 0 6px 6px 0;
+    font-size: 0.8125rem; color: var(--gray-700); line-height: 1.65;
+}
+.writing-guide strong { display: block; color: var(--primary); margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+#content-textarea {
+    display: block; width: 100%; min-height: 280px;
+    padding: 1rem; margin: 0.875rem 0 0;
+    border: none; border-top: 1px solid var(--gray-100);
+    font-size: 0.9375rem; font-family: inherit; line-height: 1.75;
+    resize: vertical; box-sizing: border-box; color: var(--gray-900);
     background: white;
 }
-.chat-input-row textarea {
-    flex: 1; resize: none; border: 1px solid var(--gray-300);
-    border-radius: var(--radius); padding: .6rem .8rem;
-    font-size: .9rem; font-family: inherit; min-height: 52px; max-height: 120px;
-}
-.chat-input-row button {
-    padding: .6rem 1.1rem; background: var(--primary); color: white;
-    border: none; border-radius: var(--radius); font-weight: 600; cursor: pointer;
-    font-size: .875rem; white-space: nowrap;
-}
-.chat-input-row button:hover { background: var(--primary-light); }
-.chat-typing { display: none; font-size: .8rem; color: var(--gray-400); padding: .25rem 1rem; font-style: italic; }
+#content-textarea:focus { outline: none; }
+#content-textarea::placeholder { color: var(--gray-300); }
 
-/* Homework pane */
-.hw-pane .card { margin-bottom: 1rem; }
-.hw-section-title { font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: .75rem; }
-.hw-prompt {
-    background: #f0ebff; border-left: 3px solid var(--primary);
-    padding: .875rem 1rem; border-radius: 0 var(--radius) var(--radius) 0;
-    font-size: .875rem; color: #333; line-height: 1.6; margin-bottom: 1.25rem;
+.writing-footer {
+    padding: 0.75rem 1rem; border-top: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.75rem;
 }
-#hw-text {
-    width: 100%; min-height: 180px; padding: .75rem; resize: vertical;
-    border: 1.5px solid var(--gray-300); border-radius: var(--radius);
-    font-size: .9rem; font-family: inherit; line-height: 1.6; box-sizing: border-box;
-}
-#hw-text:focus { outline: none; border-color: var(--primary); }
-.hw-submit-btn {
-    margin-top: .75rem; padding: .625rem 1.5rem;
-    background: var(--accent); color: var(--accent-text);
-    border: none; border-radius: var(--radius); font-weight: 700;
-    cursor: pointer; font-size: .9375rem; width: 100%;
-}
-.hw-submit-btn:disabled { opacity: .5; cursor: not-allowed; }
-.hw-feedback {
-    margin-top: 1rem; padding: 1rem;
-    border-radius: var(--radius); font-size: .875rem; line-height: 1.6;
-    white-space: pre-wrap;
-}
-.hw-feedback.approved    { background: #dcfce7; border-left: 3px solid #22c55e; }
-.hw-feedback.revision    { background: #fef9c3; border-left: 3px solid #ca8a04; }
-.hw-status-msg { font-weight: 700; margin-bottom: .5rem; }
+.word-count { font-size: 0.8125rem; color: var(--gray-400); }
+.writing-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
-.module-nav {
-    display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1rem;
+/* ── Feedback panel ────────────────────────────────────── */
+.feedback-panel { margin-top: 0.5rem; display: none; }
+.feedback-bullets { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); padding: 1rem; }
+.feedback-bullets h4 { color: #0369a1; font-size: 0.875rem; margin: 0 0 0.625rem; }
+.feedback-bullets ul { margin: 0; padding-left: 1.25rem; }
+.feedback-bullets li { font-size: 0.875rem; line-height: 1.65; color: var(--gray-700); margin-bottom: 0.375rem; }
+.feedback-approved-block {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 1px solid #86efac; border-radius: var(--radius); padding: 1rem 1.25rem;
 }
-.module-nav a {
-    font-size: .8125rem; padding: .4rem .9rem;
-    border: 1.5px solid var(--gray-200); border-radius: var(--radius);
-    text-decoration: none; color: var(--gray-600);
+.feedback-revision-block {
+    background: #fef9c3; border: 1px solid #fde047; border-radius: var(--radius); padding: 1rem 1.25rem;
 }
-.module-nav a.active { border-color: var(--primary); color: var(--primary); font-weight: 600; }
-.module-nav a.approved-link { color: #166534; border-color: #86efac; }
+.feedback-block-text { font-size: 0.875rem; line-height: 1.65; color: var(--gray-700); margin-top: 0.5rem; white-space: pre-wrap; }
+.next-mod-btn {
+    display: block; width: 100%; text-align: center; padding: 0.875rem;
+    background: var(--primary); color: white; border-radius: var(--radius);
+    font-weight: 700; text-decoration: none; margin-top: 0.875rem; font-size: 0.9375rem;
+    transition: background 0.2s;
+}
+.next-mod-btn:hover { background: var(--primary-light); }
+
+/* ── Chat sidebar ──────────────────────────────────────── */
+.chat-sidebar {
+    background: white; border: 1.5px solid var(--gray-200); border-radius: var(--radius);
+    display: flex; flex-direction: column; overflow: hidden;
+    position: sticky; top: 90px; max-height: calc(100vh - 110px);
+}
+.chat-sidebar-header {
+    padding: 0.875rem 1rem; border-bottom: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+.chat-sidebar-header h3 { margin: 0; font-size: 0.9375rem; color: var(--primary); }
+.chat-sidebar-header p  { margin: 0.2rem 0 0; font-size: 0.75rem; color: var(--gray-500); }
+.chat-agent-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+.chat-av {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--primary); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.75rem; flex-shrink: 0;
+}
+
+.chat-messages {
+    flex: 1; overflow-y: auto; padding: 0.875rem;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    min-height: 200px;
+}
+.cmsg { display: flex; gap: 0.4rem; max-width: 92%; }
+.cmsg.agent { align-self: flex-start; }
+.cmsg.user  { align-self: flex-end; flex-direction: row-reverse; }
+.cmsg-av {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700; margin-top: 2px;
+}
+.cmsg.agent .cmsg-av { background: var(--primary); color: var(--accent); }
+.cmsg.user  .cmsg-av { background: var(--accent); color: var(--accent-text); }
+.cmsg-bubble {
+    padding: 0.5rem 0.75rem; border-radius: 12px;
+    font-size: 0.8375rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+}
+.cmsg.agent .cmsg-bubble { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 2px 12px 12px 12px; color: var(--gray-900); }
+.cmsg.user  .cmsg-bubble { background: var(--primary); color: white; border-radius: 12px 2px 12px 12px; }
+.typing-bub { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 2px 12px 12px 12px; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 3px; }
+.typing-bub span { width: 5px; height: 5px; border-radius: 50%; background: var(--gray-400); animation: tb 1.2s infinite ease-in-out; display: inline-block; }
+.typing-bub span:nth-child(2) { animation-delay: 0.2s; }
+.typing-bub span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes tb { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-4px);opacity:1} }
+
+.chat-input-row {
+    border-top: 1px solid var(--gray-200); padding: 0.625rem;
+    display: flex; gap: 0.4rem; align-items: flex-end; flex-shrink: 0;
+}
+#chat-input {
+    flex: 1; padding: 0.55rem 0.75rem; border: 1.5px solid var(--gray-200); border-radius: 9px;
+    font-size: 0.85rem; font-family: inherit; line-height: 1.5; resize: none; max-height: 100px; overflow-y: auto;
+}
+#chat-input:focus { outline: none; border-color: var(--primary); }
+#btn-send-chat {
+    width: 34px; height: 34px; border-radius: 50%; background: var(--primary); border: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s;
+}
+#btn-send-chat:hover   { background: var(--primary-light); }
+#btn-send-chat:disabled { background: var(--gray-300); cursor: not-allowed; }
+#btn-send-chat svg { width: 14px; height: 14px; }
 {% endblock %}
 
 {% block content %}
-<div class="module-header">
-    <div style="max-width:1200px;margin:0 auto;">
-        <div class="module-breadcrumb">
-            <a href="{{ url_for('author_coaching_dashboard') }}" style="color:rgba(255,255,255,0.6);text-decoration:none;">← Coaching Dashboard</a>
+<!-- Module header -->
+<div class="mod-header">
+    <div class="mod-header-inner">
+        <div class="mod-breadcrumb">
+            <a href="{{ url_for('author_coaching_dashboard') }}">← Program Overview</a>
         </div>
-        <h2>Module {{ module_info.order }}: {{ module_info.title }}</h2>
-        <p>{{ module_info.description }}</p>
-    </div>
-</div>
-
-<div class="module-layout">
-    <!-- LEFT: AI Chat -->
-    <div>
-        <h3 style="color:var(--primary);margin:0 0 .75rem;font-size:.9375rem;">AI Coach Chat</h3>
-        <div class="chat-pane" id="chat-pane">
-            <div class="chat-messages" id="chat-messages">
-                {% if not chat_messages %}
-                <div class="chat-bubble bubble-assistant">
-                    Hi! I'm your Write It Great coach for Module {{ module_info.order }}: <strong>{{ module_info.title }}</strong>. {{ module_info.description }} Let's start — tell me a bit about your book idea so far.
+        <div class="mod-title-row">
+            <div class="mod-big-icon">{{ module_info.icon }}</div>
+            <div class="mod-title-text">
+                <h1>Module {{ module_info.order }}: {{ module_info.title }}</h1>
+                <p>{{ module_info.subtitle }}</p>
+            </div>
+        </div>
+        <!-- Stepper -->
+        <div class="mod-stepper">
+            {% for n in range(1, total_modules + 1) %}
+                {% if n > 1 %}<div class="step-line {% if n <= module_info.order %}done-line{% endif %}"></div>{% endif %}
+                <div class="step-dot {% if n < module_info.order %}done{% elif n == module_info.order %}current{% else %}todo{% endif %}" title="Module {{ n }}">
+                    {% if n < module_info.order %}✓{% else %}{{ n }}{% endif %}
                 </div>
-                {% else %}
-                    {% for msg in chat_messages %}
-                    <div class="chat-bubble bubble-{{ msg.role }}">{{ msg.content }}</div>
-                    {% endfor %}
-                {% endif %}
-            </div>
-            <div class="chat-typing" id="chat-typing">Coach is typing…</div>
-            <div class="chat-input-row">
-                <textarea id="chat-input" placeholder="Type your message…" rows="2"></textarea>
-                <button id="chat-send">Send</button>
-            </div>
-        </div>
-
-        <!-- Module navigation -->
-        <div class="module-nav" style="margin-top:1rem;">
-            {% for m in modules %}
-            {% set is_current = (m.order == module_info.order) %}
-            {% set mp = enrollment.modules.filter_by(module_order=m.order).first() %}
-            {% if mp and mp.status != 'locked' %}
-                <a href="{{ url_for('author_coaching_module', order=m.order) }}"
-                   class="{% if is_current %}active{% elif mp.status == 'approved' %}approved-link{% endif %}">
-                    {{ m.order }}{% if mp.status == 'approved' %}✓{% endif %}
-                </a>
-            {% else %}
-                <span style="font-size:.8125rem;padding:.4rem .9rem;border:1.5px solid #e2e8f0;border-radius:var(--radius);color:#cbd5e1;">{{ m.order }}</span>
-            {% endif %}
             {% endfor %}
         </div>
     </div>
+</div>
 
-    <!-- RIGHT: Homework -->
-    <div class="hw-pane">
-        <div class="card">
-            <div class="hw-section-title">Module {{ module_info.order }} Homework</div>
-            <div class="hw-prompt">{{ hw_prompt }}</div>
+<!-- Main layout -->
+<div class="mod-layout">
 
-            {% if progress.status == 'approved' %}
-            <div class="hw-feedback approved">
-                <div class="hw-status-msg">✓ Homework Approved</div>
-                {% if latest_hw and latest_hw.admin_feedback %}
-                <p style="margin:.5rem 0 0;font-size:.8125rem;color:#555;"><strong>Coach note:</strong> {{ latest_hw.admin_feedback }}</p>
-                {% endif %}
+    <!-- LEFT: Writing panel -->
+    <div class="writing-panel">
+
+        <!-- Collapsible context card -->
+        <details class="context-card" {% if not saved_content or not saved_content.content %}open{% endif %}>
+            <summary>
+                <span>📌 About this module</span>
+                <span style="font-size:0.7rem;color:var(--gray-400);font-weight:400;">click to {{ 'collapse' if (not saved_content or not saved_content.content) else 'expand' }}</span>
+            </summary>
+            <div class="context-body">
+                {{ module_info.description }}
+                <div class="tip-block">
+                    <strong style="display:block;margin-bottom:0.25rem;color:#0369a1;">💬 Tip</strong>
+                    Use the <strong>Brainstorm Assistant</strong> on the right if you're not sure where to start.
+                    Chat through your ideas first, then come back here to write your draft.
+                </div>
             </div>
-            {% else %}
-                {% if latest_hw %}
-                <div class="hw-feedback revision" id="hw-feedback-display">
-                    <div class="hw-status-msg">Revision Needed</div>
-                    <div>{{ latest_hw.ai_feedback }}</div>
-                    {% if latest_hw.admin_feedback %}
-                    <p style="margin:.75rem 0 0;font-size:.8125rem;"><strong>Coach note:</strong> {{ latest_hw.admin_feedback }}</p>
+        </details>
+
+        <!-- Writing area -->
+        <div class="writing-card">
+            <div class="writing-card-header">
+                <h2>✍️ Write Your {{ module_info.homework_label }}</h2>
+                <span class="save-indicator" id="save-status">
+                    {% if saved_content and saved_content.last_saved_at %}
+                        <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#16a34a"/></svg>
+                        Saved
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="writing-guide">
+                <strong>What to write</strong>
+                {{ module_info.homework_prompt }}
+            </div>
+
+            <textarea id="content-textarea"
+                      placeholder="Start writing here… your draft saves automatically as you type."
+                      {% if module_progress.status == 'approved' %}disabled{% endif %}>{{ saved_content.content if saved_content and saved_content.content else '' }}</textarea>
+
+            <div class="writing-footer">
+                <span class="word-count"><span id="word-count">{{ saved_content.word_count if saved_content else 0 }}</span> words</span>
+                <div class="writing-actions">
+                    {% if module_progress.status != 'approved' %}
+                    <button id="btn-get-feedback" class="btn" style="background:white;border:1.5px solid var(--primary);color:var(--primary);font-size:0.875rem;padding:0.45rem 1rem;cursor:pointer;border-radius:var(--radius);">
+                        Get AI Feedback
+                    </button>
+                    <button id="btn-mark-complete" class="btn btn-primary" style="font-size:0.875rem;padding:0.45rem 1.125rem;cursor:pointer;">
+                        Mark Complete &amp; Continue →
+                    </button>
+                    {% else %}
+                    <span style="font-size:0.875rem;color:#16a34a;font-weight:600;">✓ This section is complete</span>
+                    {% if module_info.order < total_modules %}
+                    <a href="{{ url_for('author_coaching_module', module_order=module_info.order + 1) }}"
+                       class="btn btn-primary" style="font-size:0.875rem;padding:0.45rem 1.125rem;text-decoration:none;">
+                        Continue to Module {{ module_info.order + 1 }} →
+                    </a>
+                    {% endif %}
                     {% endif %}
                 </div>
-                {% else %}
-                <div id="hw-feedback-display" style="display:none;" class="hw-feedback"></div>
-                {% endif %}
+            </div>
+        </div>
 
-                <textarea id="hw-text" placeholder="Write your homework here…">{% if latest_hw %}{{ latest_hw.content }}{% endif %}</textarea>
-                <button class="hw-submit-btn" id="hw-submit">Submit for Review</button>
-                <p style="font-size:.75rem;color:var(--gray-400);margin:.5rem 0 0;text-align:center;">AI reviews instantly. Our team does a final human review.</p>
+        <!-- Feedback display (populated by JS) -->
+        <div class="feedback-panel" id="feedback-panel">
+            <!-- Bullets from "Get AI Feedback" -->
+            <div class="feedback-bullets" id="feedback-bullets" style="display:none;"></div>
+            <!-- Result from "Mark Complete" -->
+            <div id="complete-result" style="display:none;"></div>
+        </div>
+
+        {% if module_progress.status == 'approved' and latest_submission and latest_submission.ai_feedback %}
+        <!-- Approved feedback preserved -->
+        <div class="feedback-approved-block" style="margin-top:0.5rem;">
+            <strong style="color:#14532d;">✓ Section approved</strong>
+            <div class="feedback-block-text">{{ latest_submission.ai_feedback }}</div>
+        </div>
+        {% elif latest_submission and latest_submission.status == 'revision_requested' %}
+        <div class="feedback-revision-block" style="margin-top:0.5rem;" id="persisted-revision">
+            <strong style="color:#854d0e;">Feedback from last review</strong>
+            <div class="feedback-block-text">{{ latest_submission.ai_feedback }}</div>
+        </div>
+        {% endif %}
+
+        <!-- View proposal link -->
+        <div style="text-align:center;padding-top:0.5rem;">
+            <a href="{{ url_for('author_coaching_proposal') }}" style="font-size:0.8125rem;color:var(--gray-500);text-decoration:none;">
+                📄 View your full draft proposal →
+            </a>
+        </div>
+
+    </div>
+
+    <!-- RIGHT: Brainstorm chat sidebar -->
+    <div class="chat-sidebar">
+        <div class="chat-sidebar-header">
+            <div class="chat-agent-row">
+                <div class="chat-av">W</div>
+                <h3>Brainstorm Assistant</h3>
+            </div>
+            <p>Stuck? Talk through your ideas here — then write your draft on the left.</p>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            {% for msg in chat_messages %}
+            <div class="cmsg {{ 'user' if msg.role == 'user' else 'agent' }}">
+                <div class="cmsg-av">{{ current_user.name[0]|upper if msg.role == 'user' else 'W' }}</div>
+                <div class="cmsg-bubble" data-raw="{{ msg.content | e }}"></div>
+            </div>
+            {% endfor %}
+
+            {% if not chat_messages %}
+            <div class="cmsg agent">
+                <div class="cmsg-av">W</div>
+                <div class="cmsg-bubble">
+                    Hi {{ current_user.name }}! I'm here to help you brainstorm your <strong>{{ module_info.title }}</strong>.<br><br>
+                    What's on your mind? You can ask me anything — share a rough idea, a question, or just where you're stuck.
+                </div>
+            </div>
             {% endif %}
         </div>
 
-        {% if progress.status != 'approved' %}
-        <div class="card" style="font-size:.8125rem;color:var(--gray-500);line-height:1.6;">
-            <strong style="color:var(--primary);">How modules work:</strong><br>
-            Use the chat on the left to work through ideas with your AI coach. When you're ready, submit your homework here. Once approved, the next module unlocks automatically.
+        <div class="chat-input-row">
+            <textarea id="chat-input" rows="1" placeholder="Ask me anything…"></textarea>
+            <button id="btn-send-chat" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+            </button>
         </div>
-        {% endif %}
     </div>
+
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-const MODULE_ORDER = {{ module_info.order }};
-const ENROLLMENT_BOOK = {{ enrollment.book_title | tojson }};
+(function () {
+    const ENROLLMENT_ID  = {{ enrollment.id }};
+    const MODULE_ORDER   = {{ module_info.order }};
+    const SECTION_KEY    = '{{ section_key }}';
+    const AUTHOR_INITIAL = '{{ current_user.name[0]|upper }}';
+    const BOOK_TITLE     = '{{ (enrollment.book_title or '') | e }}';
+    const TOTAL_MODULES  = {{ total_modules }};
+    const IS_APPROVED    = {{ 'true' if module_progress.status == 'approved' else 'false' }};
 
-// ── Chat ─────────────────────────────────────────────────────────────────────
-const chatMessages = document.getElementById('chat-messages');
-const chatInput    = document.getElementById('chat-input');
-const chatSend     = document.getElementById('chat-send');
-const chatTyping   = document.getElementById('chat-typing');
-
-function scrollChat() { chatMessages.scrollTop = chatMessages.scrollHeight; }
-scrollChat();
-
-function addBubble(role, text) {
-    const div = document.createElement('div');
-    div.className = 'chat-bubble bubble-' + role;
-    div.textContent = text;
-    chatMessages.appendChild(div);
-    scrollChat();
-}
-
-async function sendChat() {
-    const msg = chatInput.value.trim();
-    if (!msg) return;
-    chatInput.value = '';
-    chatSend.disabled = true;
-    addBubble('user', msg);
-    chatTyping.style.display = 'block';
-
-    try {
-        const res  = await fetch('/api/coaching/chat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({module_order: MODULE_ORDER, message: msg})
-        });
-        const data = await res.json();
-        chatTyping.style.display = 'none';
-        addBubble('assistant', data.success ? data.message : 'Sorry, something went wrong. Please try again.');
-    } catch(e) {
-        chatTyping.style.display = 'none';
-        addBubble('assistant', 'Connection error. Please try again.');
+    /* ── Helpers ─────────────────────────────────────── */
+    function esc(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function fmt(t) {
+        return esc(t).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
     }
-    chatSend.disabled = false;
-    chatInput.focus();
-}
 
-chatSend.addEventListener('click', sendChat);
-chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+    /* ── Render pre-loaded chat history ─────────────── */
+    document.querySelectorAll('.cmsg-bubble[data-raw]').forEach(el => {
+        el.innerHTML = fmt(el.getAttribute('data-raw'));
+        el.removeAttribute('data-raw');
+    });
+    const chatEl = document.getElementById('chat-messages');
+    chatEl.scrollTop = chatEl.scrollHeight;
 
-// ── Homework ──────────────────────────────────────────────────────────────────
-const hwSubmit  = document.getElementById('hw-submit');
-const hwText    = document.getElementById('hw-text');
-const hwDisplay = document.getElementById('hw-feedback-display');
+    /* ── Autosave ────────────────────────────────────── */
+    const textarea  = document.getElementById('content-textarea');
+    const wordCount = document.getElementById('word-count');
+    const saveStatus = document.getElementById('save-status');
+    let saveTimer = null;
 
-if (hwSubmit) {
-    hwSubmit.addEventListener('click', async () => {
-        const content = hwText ? hwText.value.trim() : '';
-        if (!content || content.length < 30) {
-            alert('Please write a more complete answer before submitting.');
-            return;
+    function countWords(text) {
+        return text.trim() ? text.trim().split(/\s+/).length : 0;
+    }
+
+    function updateWordCount() {
+        if (textarea && wordCount) {
+            wordCount.textContent = countWords(textarea.value).toLocaleString();
         }
-        hwSubmit.disabled = true;
-        hwSubmit.textContent = 'Reviewing…';
+    }
 
+    function setSaveStatus(state) {
+        if (!saveStatus) return;
+        if (state === 'saving') {
+            saveStatus.className = 'save-indicator saving';
+            saveStatus.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#d97706"/></svg> Saving…';
+        } else if (state === 'saved') {
+            saveStatus.className = 'save-indicator saved';
+            saveStatus.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#16a34a"/></svg> Saved';
+        } else {
+            saveStatus.className = 'save-indicator';
+            saveStatus.innerHTML = '';
+        }
+    }
+
+    async function saveContent() {
+        if (!textarea || IS_APPROVED) return;
+        setSaveStatus('saving');
         try {
-            const res  = await fetch('/api/coaching/homework', {
+            const r = await fetch('/api/coaching/content/save', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({module_order: MODULE_ORDER, content})
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    enrollment_id: ENROLLMENT_ID,
+                    module_order: MODULE_ORDER,
+                    content: textarea.value
+                })
             });
-            const data = await res.json();
-            if (!data.success) {
-                alert(data.error || 'Something went wrong.');
-                hwSubmit.disabled = false;
-                hwSubmit.textContent = 'Submit for Review';
+            const d = await r.json();
+            if (d.success) {
+                setSaveStatus('saved');
+                if (wordCount) wordCount.textContent = (d.word_count || 0).toLocaleString();
+            }
+        } catch(e) { setSaveStatus(''); }
+    }
+
+    if (textarea && !IS_APPROVED) {
+        textarea.addEventListener('input', () => {
+            updateWordCount();
+            setSaveStatus('saving');
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveContent, 1500);
+        });
+        updateWordCount();
+    }
+
+    /* ── Get AI Feedback ─────────────────────────────── */
+    const feedbackPanel  = document.getElementById('feedback-panel');
+    const feedbackBullets = document.getElementById('feedback-bullets');
+    const getFeedbackBtn = document.getElementById('btn-get-feedback');
+
+    if (getFeedbackBtn) {
+        getFeedbackBtn.addEventListener('click', async () => {
+            const content = textarea ? textarea.value.trim() : '';
+            if (content.length < 50) {
+                alert('Write at least a paragraph before requesting feedback.');
                 return;
             }
-            if (hwDisplay) {
-                hwDisplay.style.display = 'block';
-                hwDisplay.className = 'hw-feedback ' + (data.approved ? 'approved' : 'revision');
-                hwDisplay.innerHTML = '<div class="hw-status-msg">' +
-                    (data.approved ? '✓ Approved!' : 'Revision Needed') +
-                    '</div><div style="white-space:pre-wrap">' + escHtml(data.feedback) + '</div>';
-            }
-            if (data.approved) {
-                hwSubmit.style.display = 'none';
-                if (data.program_complete) {
-                    setTimeout(() => { window.location.href = '/author/coaching'; }, 1500);
-                } else if (data.next_module) {
-                    setTimeout(() => { window.location.href = '/author/coaching/module/' + data.next_module; }, 1800);
-                }
-            } else {
-                hwSubmit.disabled = false;
-                hwSubmit.textContent = 'Resubmit';
-            }
-        } catch(e) {
-            alert('Connection error. Please try again.');
-            hwSubmit.disabled = false;
-            hwSubmit.textContent = 'Submit for Review';
-        }
-    });
-}
+            getFeedbackBtn.disabled = true;
+            getFeedbackBtn.textContent = 'Analysing…';
+            feedbackPanel.style.display = 'block';
+            feedbackBullets.style.display = 'block';
+            feedbackBullets.innerHTML = '<h4>AI Feedback</h4><p style="color:var(--gray-500);font-size:0.875rem;">Reading your draft…</p>';
 
-function escHtml(t) {
-    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-}
+            try {
+                const r = await fetch('/api/coach-feedback', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        section: SECTION_KEY,
+                        text: content,
+                        book_title: BOOK_TITLE
+                    })
+                });
+                const d = await r.json();
+                if (d.success && d.bullets && d.bullets.length) {
+                    feedbackBullets.innerHTML = '<h4>AI Feedback on your draft</h4><ul>' +
+                        d.bullets.map(b => `<li>${fmt(b)}</li>`).join('') + '</ul>';
+                } else {
+                    feedbackBullets.innerHTML = '<h4>AI Feedback</h4><p style="color:var(--gray-500);font-size:0.875rem;">Could not generate feedback. Try again.</p>';
+                }
+            } catch(e) {
+                feedbackBullets.innerHTML = '<h4>AI Feedback</h4><p style="color:var(--error);font-size:0.875rem;">Network error. Please try again.</p>';
+            }
+            getFeedbackBtn.disabled = false;
+            getFeedbackBtn.textContent = 'Get AI Feedback';
+            feedbackBullets.scrollIntoView({behavior:'smooth', block:'nearest'});
+        });
+    }
+
+    /* ── Mark Complete ───────────────────────────────── */
+    const markCompleteBtn = document.getElementById('btn-mark-complete');
+    const completeResult  = document.getElementById('complete-result');
+
+    if (markCompleteBtn) {
+        markCompleteBtn.addEventListener('click', async () => {
+            const content = textarea ? textarea.value.trim() : '';
+            if (content.length < 100) {
+                alert('Please write more before marking this section complete. The more detail you provide, the better the final proposal.');
+                return;
+            }
+            if (!confirm('Submit this section for AI review? The AI will check if it\'s ready to advance.')) return;
+
+            markCompleteBtn.disabled = true;
+            markCompleteBtn.textContent = 'Reviewing…';
+            if (getFeedbackBtn) getFeedbackBtn.disabled = true;
+            feedbackPanel.style.display = 'block';
+            feedbackBullets.style.display = 'none';
+            completeResult.style.display = 'block';
+            completeResult.innerHTML = '<p style="color:var(--gray-500);font-size:0.875rem;padding:0.5rem 0;">Reviewing your section…</p>';
+
+            // Save first, then submit
+            await saveContent();
+
+            try {
+                const r = await fetch('/api/coaching/homework', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        enrollment_id: ENROLLMENT_ID,
+                        module_order: MODULE_ORDER,
+                        content: content
+                    })
+                });
+                const d = await r.json();
+
+                if (!d.success) {
+                    markCompleteBtn.disabled = false;
+                    markCompleteBtn.textContent = 'Mark Complete & Continue →';
+                    if (getFeedbackBtn) getFeedbackBtn.disabled = false;
+                    completeResult.innerHTML = `<p style="color:var(--error);font-size:0.875rem;">${esc(d.error || 'Something went wrong.')}</p>`;
+                    return;
+                }
+
+                if (d.approved) {
+                    const nextLink = d.program_complete
+                        ? `<a href="/author/coaching/proposal" class="next-mod-btn">🎉 View Your Complete Draft Proposal →</a>`
+                        : d.next_module
+                            ? `<a href="/author/coaching/module/${d.next_module}" class="next-mod-btn">Continue to Module ${d.next_module} →</a>`
+                            : `<a href="/author/coaching" class="next-mod-btn">Back to Program Overview →</a>`;
+                    completeResult.innerHTML = `
+                        <div class="feedback-approved-block">
+                            <strong style="color:#14532d;">✓ Section approved!</strong>
+                            <div class="feedback-block-text">${d.feedback ? fmt(d.feedback) : ''}</div>
+                        </div>
+                        ${nextLink}`;
+                    if (textarea) textarea.disabled = true;
+                    markCompleteBtn.style.display = 'none';
+                    if (getFeedbackBtn) getFeedbackBtn.style.display = 'none';
+                } else {
+                    completeResult.innerHTML = `
+                        <div class="feedback-revision-block">
+                            <strong style="color:#854d0e;">Almost there — a few things to strengthen</strong>
+                            <div class="feedback-block-text">${d.feedback ? fmt(d.feedback) : ''}</div>
+                        </div>
+                        <p style="font-size:0.8125rem;color:var(--gray-500);margin-top:0.5rem;">Revise your draft above and click <strong>Mark Complete</strong> again when ready.</p>`;
+                    markCompleteBtn.disabled = false;
+                    markCompleteBtn.textContent = 'Mark Complete & Continue →';
+                    if (getFeedbackBtn) getFeedbackBtn.disabled = false;
+                }
+                completeResult.scrollIntoView({behavior:'smooth', block:'nearest'});
+            } catch(e) {
+                markCompleteBtn.disabled = false;
+                markCompleteBtn.textContent = 'Mark Complete & Continue →';
+                if (getFeedbackBtn) getFeedbackBtn.disabled = false;
+                completeResult.innerHTML = '<p style="color:var(--error);font-size:0.875rem;">Network error. Please try again.</p>';
+            }
+        });
+    }
+
+    /* ── Chat sidebar ────────────────────────────────── */
+    const inputEl  = document.getElementById('chat-input');
+    const sendBtn  = document.getElementById('btn-send-chat');
+    let waiting = false;
+
+    function appendBubble(role, content) {
+        const wrap = document.createElement('div');
+        wrap.className = 'cmsg ' + role;
+        const av = document.createElement('div');
+        av.className = 'cmsg-av';
+        av.textContent = role === 'agent' ? 'W' : AUTHOR_INITIAL;
+        const bubble = document.createElement('div');
+        bubble.className = 'cmsg-bubble';
+        bubble.innerHTML = fmt(content);
+        wrap.appendChild(av); wrap.appendChild(bubble);
+        chatEl.appendChild(wrap);
+        chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function showTyping() {
+        const w = document.createElement('div'); w.className='cmsg agent'; w.id='typing-ind';
+        const av = document.createElement('div'); av.className='cmsg-av'; av.textContent='W';
+        const b = document.createElement('div'); b.className='typing-bub';
+        b.innerHTML='<span></span><span></span><span></span>';
+        w.appendChild(av); w.appendChild(b); chatEl.appendChild(w);
+        chatEl.scrollTop = chatEl.scrollHeight;
+    }
+    function removeTyping() { const t=document.getElementById('typing-ind'); if(t) t.remove(); }
+
+    function chatAutoResize() {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+    }
+
+    async function sendChat(text) {
+        text = text.trim();
+        if (!text || waiting) return;
+        waiting = true; sendBtn.disabled = true;
+        inputEl.value = ''; chatAutoResize();
+        appendBubble('user', text);
+        showTyping();
+        try {
+            const r = await fetch('/api/coaching/chat', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ enrollment_id: ENROLLMENT_ID, module_order: MODULE_ORDER, message: text })
+            });
+            const d = await r.json();
+            removeTyping();
+            appendBubble('agent', d.success && d.message ? d.message : 'Sorry, I had trouble responding. Please try again.');
+        } catch(e) {
+            removeTyping();
+            appendBubble('agent', 'Network error — please try again.');
+        }
+        waiting = false; sendBtn.disabled = false; inputEl.focus();
+    }
+
+    inputEl.addEventListener('input', chatAutoResize);
+    sendBtn.addEventListener('click', () => sendChat(inputEl.value));
+    inputEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(inputEl.value); }
+    });
+
+})();
 </script>
 {% endblock %}

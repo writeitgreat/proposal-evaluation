@@ -2,105 +2,237 @@
 {% block title %}Coaching Program — Write It Great{% endblock %}
 
 {% block extra_css %}
+/* ── Hero ──────────────────────────────────────────────── */
 .coaching-hero {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
     padding: 2.5rem 2rem;
     border-bottom: 4px solid var(--accent);
     color: white;
 }
-.coaching-hero h1 { color: var(--accent); font-size: 1.375rem; margin-bottom: 0.25rem; }
-.coaching-hero p  { color: rgba(255,255,255,0.8); margin: 0; }
-.progress-bar-wrap { background: rgba(255,255,255,0.15); border-radius: 999px; height: 10px; margin: 1.25rem 0 0.5rem; max-width: 480px; }
-.progress-bar-fill { background: var(--accent); border-radius: 999px; height: 10px; transition: width 0.4s; }
-.progress-label    { font-size: 0.8125rem; color: rgba(255,255,255,0.7); }
+.coaching-hero h1 { color: var(--accent); font-size: 1.5rem; margin-bottom: 0.25rem; }
+.coaching-hero p  { color: rgba(255,255,255,0.8); font-size: 0.9375rem; margin: 0; }
 
-.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
-.module-card {
-    background: white;
-    border: 2px solid var(--gray-200);
+/* ── Progress block ────────────────────────────────────── */
+.progress-block {
+    background: rgba(255,255,255,0.07);
+    border: 1.5px solid rgba(255,255,255,0.18);
     border-radius: var(--radius);
     padding: 1.25rem 1.5rem;
+    margin-top: 1.25rem;
+    max-width: 680px;
+}
+.progress-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; font-size: 0.875rem; }
+.progress-track { height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; }
+.progress-fill  { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.6s ease; }
+.progress-sub   { margin-top: 0.625rem; display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.progress-sub a, .progress-sub span { font-size: 0.8125rem; color: rgba(255,255,255,0.65); text-decoration: none; }
+.progress-sub a:hover { color: var(--accent); }
+.progress-sub a.accent-link { color: var(--accent); font-weight: 600; }
+
+/* ── Enroll CTA ────────────────────────────────────────── */
+.enroll-cta {
+    background: rgba(255,255,255,0.07);
+    border: 1.5px solid rgba(255,255,255,0.25);
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin-top: 1.5rem;
+    max-width: 600px;
+}
+.enroll-cta h3 { color: var(--accent); margin: 0 0 0.75rem; font-size: 1.125rem; }
+.enroll-cta ul { color: rgba(255,255,255,0.85); font-size: 0.875rem; line-height: 1.8; padding-left: 1.25rem; margin: 0 0 1.5rem; }
+
+/* ── Modules grid ──────────────────────────────────────── */
+.modules-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+@media(min-width: 700px) { .modules-grid { grid-template-columns: 1fr 1fr; } }
+
+.module-card {
+    background: white;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.875rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
     position: relative;
-    transition: box-shadow 0.15s;
 }
-.module-card.in-progress  { border-color: var(--primary); }
-.module-card.approved     { border-color: #22c55e; }
-.module-card.locked       { opacity: 0.55; }
-.module-card a.module-btn {
-    display: inline-block; margin-top: 1rem;
-    padding: 0.5rem 1.25rem;
-    background: var(--accent); color: var(--accent-text);
-    border-radius: var(--radius); font-weight: 600;
-    font-size: 0.875rem; text-decoration: none;
+.module-card:hover:not(.locked) { border-color: var(--primary); box-shadow: 0 2px 12px rgba(45,27,105,0.12); transform: translateY(-1px); }
+.module-card.locked { background: var(--gray-50); opacity: 0.6; cursor: default; }
+.module-card.current { border-color: var(--primary); border-width: 2px; box-shadow: 0 2px 16px rgba(45,27,105,0.15); }
+.module-card.completed { border-color: #86efac; }
+
+.mod-icon  { font-size: 1.625rem; flex-shrink: 0; margin-top: 2px; }
+.mod-body  { flex: 1; min-width: 0; }
+.mod-num   { font-size: 0.7rem; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; }
+.mod-title { font-size: 0.9375rem; font-weight: 700; color: var(--gray-900); margin: 2px 0; }
+.mod-sub   { font-size: 0.8rem; color: var(--gray-500); }
+.mod-meta  { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.mod-status { font-size: 0.7rem; font-weight: 600; padding: 0.175rem 0.5rem; border-radius: 20px; }
+.mod-status.approved    { background: #dcfce7; color: #166534; }
+.mod-status.in-progress { background: #ede9fe; color: #4c1d95; }
+.mod-status.has-draft   { background: #fef3c7; color: #92400e; }
+.mod-status.locked      { background: var(--gray-100); color: var(--gray-400); }
+
+.mod-word-count { font-size: 0.7rem; color: var(--gray-400); }
+.mod-lock { position: absolute; top: 0.875rem; right: 0.875rem; font-size: 0.9rem; color: var(--gray-300); }
+.mod-check{ position: absolute; top: 0.875rem; right: 0.875rem; color: #16a34a; font-size: 1rem; }
+
+/* ── Complete banner ───────────────────────────────────── */
+.complete-banner {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 1.5px solid #86efac;
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 1.5rem;
 }
-.module-card a.module-btn:hover { background: var(--accent-dark); }
-.module-num  { font-size: 0.75rem; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .06em; }
-.module-title { font-size: 1rem; font-weight: 700; color: var(--primary); margin: 0.25rem 0; }
-.module-desc  { font-size: 0.8125rem; color: var(--gray-500); line-height: 1.5; }
-.status-pip {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    font-size: 0.75rem; font-weight: 600;
-    padding: 0.2rem 0.6rem; border-radius: 999px; margin-bottom: 0.5rem;
-}
-.pip-locked      { background: #f1f5f9; color: #64748b; }
-.pip-in-progress { background: #ede9fe; color: #5b21b6; }
-.pip-approved    { background: #dcfce7; color: #166534; }
+.complete-banner h3 { color: #14532d; margin: 0 0 0.5rem; }
+.complete-banner p  { color: #166534; font-size: 0.9rem; margin: 0 0 1rem; }
 {% endblock %}
 
 {% block content %}
-<section class="coaching-hero">
+<!-- Hero -->
+<div class="coaching-hero">
     <div style="max-width:1200px;margin:0 auto;">
+        <h1>📖 Book Proposal Program</h1>
+        <p>Build every section of your publisher-ready proposal — one module at a time.</p>
+
         {% if enrollment %}
-        <h1>Your Coaching Program</h1>
-        <p style="margin-bottom:.5rem;">{{ enrollment.book_title }}</p>
-        <div class="progress-bar-wrap">
-            <div class="progress-bar-fill" style="width:{{ progress_pct }}%"></div>
+        {% set pct = ((completed_count / total_modules) * 100)|int %}
+        <div class="progress-block">
+            <div class="progress-row">
+                <span style="font-weight:600;">{{ enrollment.book_title or 'Your Proposal' }}</span>
+                <span>{{ completed_count }}/{{ total_modules }} sections complete</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" style="width:{{ pct }}%"></div>
+            </div>
+            <div class="progress-sub">
+                <span>{{ pct }}% complete</span>
+                {% if has_any_content %}
+                <a href="{{ url_for('author_coaching_proposal') }}" class="accent-link">📄 View your draft proposal →</a>
+                {% endif %}
+                {% if enrollment.status == 'completed' %}
+                <a href="{{ url_for('index') }}" class="accent-link">Submit for evaluation →</a>
+                {% endif %}
+            </div>
         </div>
-        <span class="progress-label">
-            {% if enrollment.status == 'completed' %}
-                Program complete — all 7 modules approved!
-            {% else %}
-                Module {{ enrollment.current_module }} of 7
-            {% endif %}
-        </span>
         {% else %}
-        <h1>Write It Great Coaching Program</h1>
-        <p>Seven focused modules to build your publisher-ready proposal — with AI coaching, homework review, and expert feedback at every step.</p>
-        <a href="{{ url_for('author_coaching_enroll') }}" style="display:inline-block;margin-top:1.25rem;padding:.75rem 1.75rem;background:var(--accent);color:var(--accent-text);border-radius:var(--radius);font-weight:700;text-decoration:none;">Enroll Now</a>
+        <div class="enroll-cta">
+            <h3>Write your book proposal the right way</h3>
+            <ul>
+                <li>7 focused modules — one for each section of a publisher-ready proposal</li>
+                <li>AI brainstorm assistant in every module to help you develop your ideas</li>
+                <li>Your writing saves automatically as you go</li>
+                <li>AI reviews each section and unlocks the next when it's ready</li>
+                <li>At the end, you have a complete proposal draft ready for submission</li>
+            </ul>
+            <a href="{{ url_for('author_coaching_enroll') }}"
+               style="display:inline-block;padding:0.75rem 1.75rem;background:var(--accent);color:var(--accent-text);font-weight:700;border-radius:var(--radius);text-decoration:none;font-size:0.9375rem;">
+                Start Building Your Proposal →
+            </a>
+        </div>
         {% endif %}
     </div>
-</section>
+</div>
 
-<div class="container" style="max-width:1200px;margin:2rem auto;padding:0 1rem;">
+<!-- Module grid -->
+<div class="container" style="margin-top:2rem;margin-bottom:3rem;">
+
     {% if enrollment and enrollment.status == 'completed' %}
-    <div class="card" style="border-left:4px solid #22c55e;padding:1.5rem;">
-        <h3 style="color:#166534;margin:0 0 .5rem;">Congratulations — Program Complete!</h3>
-        <p style="margin:0;color:var(--gray-600);">You've completed all 7 modules. Your proposal material is ready for a full evaluation. Submit it from your <a href="{{ url_for('author_dashboard') }}">dashboard</a>.</p>
+    <div class="complete-banner">
+        <h3>🎉 Congratulations — All 7 Sections Complete!</h3>
+        <p>Your proposal draft is finished. Submit it for a full professional evaluation to receive your tier rating, score breakdown, and advance estimate.</p>
+        <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+            <a href="{{ url_for('author_coaching_proposal') }}" class="btn" style="background:white;border:1.5px solid #16a34a;color:#14532d;font-weight:700;text-decoration:none;padding:0.6rem 1.25rem;">
+                📄 View Full Draft
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-primary" style="text-decoration:none;">
+                Submit for Evaluation →
+            </a>
+        </div>
     </div>
     {% endif %}
 
-    <div class="module-grid">
-        {% for m in modules_data %}
-        <div class="module-card {{ m.status }}">
-            {% if m.status == 'locked' %}
-                <span class="status-pip pip-locked">🔒 Locked</span>
-            {% elif m.status == 'in_progress' %}
-                <span class="status-pip pip-in-progress">✏️ In Progress</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+        <h3 style="color:var(--primary);margin:0;">
+            {{ 'Your 7 Sections' if enrollment else 'Program Overview' }}
+        </h3>
+        {% if has_any_content %}
+        <a href="{{ url_for('author_coaching_proposal') }}"
+           style="font-size:0.875rem;color:var(--primary);font-weight:600;text-decoration:none;border:1.5px solid var(--primary);padding:0.4rem 0.875rem;border-radius:var(--radius);">
+            📄 View Draft Proposal
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="modules-grid">
+        {% for m in modules %}
+            {% set order = m.order %}
+            {% set mp = all_progress | selectattr('module_order', 'eq', order) | first | default(none) %}
+            {% set mc = saved_content.get(order) %}
+            {% set status = mp.status if (enrollment and mp) else 'locked' %}
+            {% set has_draft = mc and mc.content and mc.content | trim %}
+            {% set is_locked = (status == 'locked') %}
+            {% set is_approved = (status == 'approved') %}
+            {% set is_current = (enrollment and enrollment.current_module == order and status != 'approved') %}
+
+            {% if not is_locked and enrollment %}
+            <a href="{{ url_for('author_coaching_module', module_order=order) }}"
+               class="module-card{% if is_current %} current{% endif %}{% if is_approved %} completed{% endif %}">
             {% else %}
-                <span class="status-pip pip-approved">✓ Approved</span>
+            <div class="module-card locked">
             {% endif %}
-
-            <div class="module-num">Module {{ m.order }}</div>
-            <div class="module-title">{{ m.title }}</div>
-            <div class="module-desc">{{ m.description }}</div>
-
-            {% if m.status != 'locked' %}
-                <a href="{{ url_for('author_coaching_module', order=m.order) }}" class="module-btn">
-                    {% if m.status == 'approved' %}Review{% else %}Open{% endif %}
-                </a>
+                <div class="mod-icon">{{ m.icon }}</div>
+                <div class="mod-body">
+                    <div class="mod-num">Section {{ order }} of {{ total_modules }}</div>
+                    <div class="mod-title">{{ m.title }}</div>
+                    <div class="mod-sub">{{ m.subtitle }}</div>
+                    {% if enrollment and mp %}
+                    <div class="mod-meta">
+                        {% if is_approved %}
+                        <span class="mod-status approved">✓ Complete</span>
+                        {% elif has_draft %}
+                        <span class="mod-status has-draft">Draft saved</span>
+                        {% elif status == 'in_progress' or status == 'revision_requested' %}
+                        <span class="mod-status in-progress">In Progress</span>
+                        {% endif %}
+                        {% if mc and mc.word_count %}
+                        <span class="mod-word-count">{{ mc.word_count }} words</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% if is_locked %}
+                <div class="mod-lock">🔒</div>
+                {% elif is_approved %}
+                <div class="mod-check">✓</div>
+                {% elif is_current %}
+                <div style="position:absolute;top:0.875rem;right:0.875rem;">
+                    <span style="font-size:0.7rem;background:var(--primary);color:white;padding:0.175rem 0.5rem;border-radius:20px;font-weight:600;">Current</span>
+                </div>
+                {% endif %}
+            {% if not is_locked and enrollment %}
+            </a>
+            {% else %}
+            </div>
             {% endif %}
-        </div>
         {% endfor %}
     </div>
+
+    {% if not enrollment %}
+    <div style="margin-top:1.5rem;text-align:center;">
+        <p style="color:var(--gray-500);font-size:0.875rem;">Already have a finished proposal?</p>
+        <a href="{{ url_for('index') }}" style="color:var(--primary);font-weight:600;font-size:0.875rem;">Upload it for evaluation instead →</a>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
