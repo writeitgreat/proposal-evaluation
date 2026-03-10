@@ -191,7 +191,7 @@ COACHING_MODULES = [
         'title': 'Sample Writing',
         'subtitle': 'Show editors your voice in action',
         'description': "Your writing sample is often the last thing editors read — but it can override everything else. Weak writing kills strong proposals. Strong writing rescues weak ones. This section gives you no room to hide.",
-        'homework_prompt': "Submit 500-1,000 words of your strongest writing for this book. It could be an opening section, a sample chapter excerpt, or a standalone piece that demonstrates your voice and writing quality. Choose something that immediately draws the reader in and reflects the tone of the full book.",
+        'homework_prompt': "Submit 3,000–6,000 words of your strongest writing for this book. It could be an opening section, a sample chapter, or a standalone piece that demonstrates your voice and writing quality. Choose something that immediately draws the reader in and reflects the tone of the full book.",
         'homework_label': 'Writing Sample',
         'icon': '✍️',
         'chat_context': 'writing sample and authorial voice',
@@ -1972,7 +1972,7 @@ HOMEWORK PROMPT THEY WERE GIVEN:
 
 AUTHOR'S SUBMISSION:
 ---
-{content[:4000]}
+{content[:30000]}
 ---
 
 Evaluate this homework submission. Consider:
