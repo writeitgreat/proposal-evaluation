@@ -2163,6 +2163,13 @@ def author_coaching_module(module_order):
     section_keys = {1:'hook', 2:'audience', 3:'comps', 4:'credentials',
                     5:'outline', 6:'writing', 7:'marketing'}
 
+    # All module progress (for stepper nav + progress bar)
+    all_module_progress = {
+        p.module_order: p.status
+        for p in AuthorModuleProgress.query.filter_by(enrollment_id=enrollment.id).all()
+    }
+    approved_count = sum(1 for s in all_module_progress.values() if s == 'approved')
+
     return render_template(
         'author_coaching_module.html',
         enrollment=enrollment,
@@ -2173,6 +2180,8 @@ def author_coaching_module(module_order):
         latest_submission=latest_submission,
         section_key=section_keys.get(module_order, 'hook'),
         total_modules=len(COACHING_MODULES),
+        all_module_progress=all_module_progress,
+        approved_count=approved_count,
     )
 
 
