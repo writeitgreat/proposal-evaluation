@@ -18,6 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -2243,6 +2244,17 @@ def author_coaching_enroll():
         return redirect(url_for('author_coaching_dashboard'))
 
     if request.method == 'POST':
+        # Ensure all columns exist before inserting — self-healing schema patch
+        try:
+            with db.engine.begin() as _conn:
+                _conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS book_title VARCHAR(500)'))
+                _conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP'))
+                _conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS current_module INTEGER DEFAULT 1'))
+                _conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS welcome_email_sent BOOLEAN DEFAULT FALSE'))
+                _conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS complete_email_sent BOOLEAN DEFAULT FALSE'))
+        except Exception as _patch_err:
+            print(f"Schema patch error (non-fatal): {_patch_err}")
+
         book_title = request.form.get('book_title', '').strip()
         enrollment = CoachingEnrollment(
             author_id=current_user.id,
