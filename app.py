@@ -4474,6 +4474,8 @@ def admin_coaching_detail(enrollment_id):
     module_data = []
     for mp in all_mp:
         m_info = _get_module_info(mp.module_order)
+        if not m_info:
+            continue
         submissions = (HomeworkSubmission.query
                        .filter_by(enrollment_id=enrollment_id, module_order=mp.module_order)
                        .order_by(HomeworkSubmission.submitted_at.desc()).all())
