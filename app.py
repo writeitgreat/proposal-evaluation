@@ -4760,13 +4760,28 @@ def run_migrations():
             CoachingEnrollment.__table__.create(db.engine)
             print("Migration: created coaching_enrollment table")
         else:
-            with db.engine.begin() as conn:
-                conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS book_title VARCHAR(500)'))
-                conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP'))
-                conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS current_module INTEGER DEFAULT 1'))
-                conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS welcome_email_sent BOOLEAN DEFAULT FALSE'))
-                conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS complete_email_sent BOOLEAN DEFAULT FALSE'))
-            print("Migration: coaching_enrollment columns verified")
+            # Retry up to 5 times with lock_timeout so zombie Postgres connections
+            # do not silently block this ALTER TABLE indefinitely.
+            import time as _time
+            _ce_alter_ok = False
+            for _attempt in range(5):
+                try:
+                    with db.engine.begin() as conn:
+                        conn.execute(text('SET lock_timeout = 4000'))  # 4 seconds
+                        conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS book_title VARCHAR(500)'))
+                        conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP'))
+                        conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS current_module INTEGER DEFAULT 1'))
+                        conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS welcome_email_sent BOOLEAN DEFAULT FALSE'))
+                        conn.execute(text('ALTER TABLE coaching_enrollment ADD COLUMN IF NOT EXISTS complete_email_sent BOOLEAN DEFAULT FALSE'))
+                    _ce_alter_ok = True
+                    print(f"Migration: coaching_enrollment columns verified (attempt {_attempt + 1})")
+                    break
+                except Exception as _ce_err:
+                    print(f"Migration: coaching_enrollment attempt {_attempt + 1} failed: {_ce_err}")
+                    if _attempt < 4:
+                        _time.sleep(3)
+            if not _ce_alter_ok:
+                print("Migration ERROR: could not alter coaching_enrollment after 5 attempts — schema may be incomplete")
     except Exception as e:
         print(f"Migration warning (coaching_enrollment): {e}")
 
@@ -4934,6 +4949,19 @@ with app.app_context():
         run_migrations()
     except Exception as e:
         print(f"Migration note: {e}")
+    # Report actual coaching_enrollment schema so logs show what happened
+    try:
+        from sqlalchemy import inspect as _sa_inspect
+        _cols = [c['name'] for c in _sa_inspect(db.engine).get_columns('coaching_enrollment')]
+        print(f"STARTUP schema coaching_enrollment columns: {_cols}")
+        _required = {'book_title', 'completed_at', 'current_module', 'welcome_email_sent', 'complete_email_sent'}
+        _missing = _required - set(_cols)
+        if _missing:
+            print(f"STARTUP WARNING: coaching_enrollment is missing columns: {_missing}")
+        else:
+            print("STARTUP schema OK: all coaching_enrollment columns present")
+    except Exception as _se:
+        print(f"STARTUP schema check error: {_se}")
 
 
 if __name__ == '__main__':
