@@ -4843,6 +4843,15 @@ def run_migrations():
                 if 'review_email_sent' not in hw_cols:
                     conn.execute(text('ALTER TABLE homework_submission ADD COLUMN review_email_sent BOOLEAN DEFAULT FALSE'))
                     print("Migration: added homework_submission.review_email_sent")
+                if 'ai_feedback' not in hw_cols:
+                    conn.execute(text('ALTER TABLE homework_submission ADD COLUMN ai_feedback TEXT'))
+                    print("Migration: added homework_submission.ai_feedback")
+                if 'admin_feedback' not in hw_cols:
+                    conn.execute(text('ALTER TABLE homework_submission ADD COLUMN admin_feedback TEXT'))
+                    print("Migration: added homework_submission.admin_feedback")
+                if 'status' not in hw_cols:
+                    conn.execute(text("ALTER TABLE homework_submission ADD COLUMN status VARCHAR(30) DEFAULT 'pending_review'"))
+                    print("Migration: added homework_submission.status")
     except Exception as e:
         print(f"Migration warning (homework_submission): {e}")
 
