@@ -2243,29 +2243,45 @@ def author_coaching_enroll():
         return redirect(url_for('author_coaching_dashboard'))
 
     if request.method == 'POST':
+        import traceback
+        from sqlalchemy import text as _text, inspect as _inspect
+
+        # Log actual DB schema for debugging
+        try:
+            _insp = _inspect(db.engine)
+            _ce_cols = [c['name'] for c in _insp.get_columns('coaching_enrollment')]
+            print(f"DEBUG coaching_enrollment columns: {_ce_cols}")
+        except Exception as _e:
+            print(f"DEBUG could not inspect coaching_enrollment: {_e}")
+
         book_title = request.form.get('book_title', '').strip()
-        enrollment = CoachingEnrollment(
-            author_id=current_user.id,
-            book_title=book_title or None,
-            status='active',
-            current_module=1,
-        )
-        db.session.add(enrollment)
-        db.session.flush()
-
-        # Create module progress rows: module 1 = in_progress, rest = locked
-        for m in COACHING_MODULES:
-            status = 'in_progress' if m['order'] == 1 else 'locked'
-            unlocked_at = datetime.utcnow() if m['order'] == 1 else None
-            mp = AuthorModuleProgress(
-                enrollment_id=enrollment.id,
-                module_order=m['order'],
-                status=status,
-                unlocked_at=unlocked_at,
+        try:
+            enrollment = CoachingEnrollment(
+                author_id=current_user.id,
+                book_title=book_title or None,
+                status='active',
+                current_module=1,
             )
-            db.session.add(mp)
+            db.session.add(enrollment)
+            db.session.flush()
 
-        db.session.commit()
+            # Create module progress rows: module 1 = in_progress, rest = locked
+            for m in COACHING_MODULES:
+                status = 'in_progress' if m['order'] == 1 else 'locked'
+                unlocked_at = datetime.utcnow() if m['order'] == 1 else None
+                mp = AuthorModuleProgress(
+                    enrollment_id=enrollment.id,
+                    module_order=m['order'],
+                    status=status,
+                    unlocked_at=unlocked_at,
+                )
+                db.session.add(mp)
+
+            db.session.commit()
+        except Exception as _enroll_err:
+            db.session.rollback()
+            print(f"ENROLL ERROR full traceback:\n{traceback.format_exc()}")
+            raise
 
         # Send welcome email
         try:
