@@ -55,6 +55,27 @@ def fromjson_filter(s):
     except (json.JSONDecodeError, TypeError):
         return []
 
+@app.template_filter('format_prompt')
+def format_prompt_filter(text):
+    """Convert markdown-style homework prompt text to clean HTML."""
+    import re, html as htmllib
+    if not text:
+        return ''
+    escaped = htmllib.escape(text)
+    # Bold: **text** → <strong>text</strong>
+    escaped = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
+    # Split into paragraphs on double newlines
+    paragraphs = re.split(r'\n{2,}', escaped)
+    parts = []
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+        # Convert single newlines to <br> within a paragraph
+        para = para.replace('\n', '<br>')
+        parts.append(f'<p>{para}</p>')
+    return ''.join(parts)
+
 # OpenAI client
 client = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 
@@ -2045,7 +2066,7 @@ def _build_module_system_prompt(module_info, author_name, book_title):
     title_line = f'The author\'s working book title is: "{book_title}".\n\n' if book_title else ''
     return f"""You are an expert book proposal coach at Write It Great — an elite literary agency and ghostwriting consultancy.
 
-{title_line}You are currently helping {author_name} work on Module {module_info['order']} of 7: **{module_info['title']}** — {module_info['subtitle']}.
+{title_line}You are currently helping {author_name} work on Section {module_info['order']} of 7: **{module_info['title']}** — {module_info['subtitle']}.
 
 FOCUS FOR THIS MODULE: {module_info['description']}
 

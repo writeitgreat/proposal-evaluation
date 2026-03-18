@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Module {{ module_info.order }}: {{ module_info.title }} — Write It Great{% endblock %}
+{% block title %}Section {{ module_info.order }}: {{ module_info.title }} — Write It Great{% endblock %}
 
 {% block extra_css %}
 /* ── Module header ─────────────────────────────────────── */
@@ -106,11 +106,17 @@
 
 .writing-guide {
     margin: 0.875rem 1rem 0;
-    padding: 0.75rem 1rem; background: var(--gray-50);
+    padding: 0.875rem 1.125rem; background: var(--gray-50);
     border-left: 3px solid var(--primary); border-radius: 0 6px 6px 0;
-    font-size: 0.8125rem; color: var(--gray-700); line-height: 1.65;
+    font-size: 0.8125rem; color: var(--gray-700); line-height: 1.7;
 }
-.writing-guide strong { display: block; color: var(--primary); margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.writing-guide > strong:first-child {
+    display: block; color: var(--primary); margin-bottom: 0.5rem;
+    font-size: 0.725rem; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.writing-guide p { margin: 0 0 0.75rem; }
+.writing-guide p:last-child { margin-bottom: 0; }
+.writing-guide strong { color: var(--gray-800); font-weight: 700; }
 
 #content-textarea {
     display: block; width: 100%; min-height: 280px;
@@ -284,7 +290,7 @@
         <div class="mod-title-row">
             <div class="mod-big-icon">{{ module_info.icon }}</div>
             <div class="mod-title-text">
-                <h1>Module {{ module_info.order }}: {{ module_info.title }}</h1>
+                <h1>Section {{ module_info.order }}: {{ module_info.title }}</h1>
                 <p>{{ module_info.subtitle }}</p>
             </div>
         </div>
@@ -296,11 +302,11 @@
                 {% if step_status in ('approved', 'in_progress') %}
                     <a href="{{ url_for('author_coaching_module', module_order=n) }}"
                        class="step-dot {% if n < module_info.order %}done{% elif n == module_info.order %}current{% else %}done{% endif %}"
-                       title="Module {{ n }}: {{ step_status }}">
+                       title="Section {{ n }}: {{ step_status }}">
                         {% if step_status == 'approved' and n != module_info.order %}✓{% else %}{{ n }}{% endif %}
                     </a>
                 {% else %}
-                    <span class="step-dot todo" title="Module {{ n }}: locked">{{ n }}</span>
+                    <span class="step-dot todo" title="Section {{ n }}: locked">{{ n }}</span>
                 {% endif %}
             {% endfor %}
         </div>
@@ -351,7 +357,7 @@
 
             <div class="writing-guide">
                 <strong>What to write</strong>
-                {{ module_info.homework_prompt }}
+                {{ module_info.homework_prompt | format_prompt | safe }}
             </div>
 
             {# Publisher-ready = ai_approved=True on latest submission. Always editable otherwise. #}
@@ -389,7 +395,7 @@
                     {% if module_info.order < total_modules %}
                     <a href="{{ url_for('author_coaching_module', module_order=module_info.order + 1) }}"
                        class="btn btn-primary" style="font-size:0.875rem;padding:0.45rem 1.125rem;text-decoration:none;">
-                        Continue to Module {{ module_info.order + 1 }} →
+                        Continue to Section {{ module_info.order + 1 }} →
                     </a>
                     {% endif %}
                     {% endif %}
@@ -428,7 +434,7 @@
             </ul>
             {% if module_progress.status == 'approved' and module_info.order < total_modules %}
             <a href="{{ url_for('author_coaching_module', module_order=module_info.order + 1) }}" class="next-mod-btn" style="margin-top:0.75rem;">
-                Continue to Module {{ module_info.order + 1 }} →
+                Continue to Section {{ module_info.order + 1 }} →
             </a>
             {% endif %}
         </div>
@@ -705,7 +711,7 @@
                 const nextLink = d.program_complete
                     ? `<a href="/author/coaching/proposal" class="next-mod-btn">View Your Complete Draft Proposal →</a>`
                     : d.next_module
-                        ? `<a href="/author/coaching/module/${d.next_module}" class="next-mod-btn">Continue to Module ${d.next_module} →</a>`
+                        ? `<a href="/author/coaching/module/${d.next_module}" class="next-mod-btn">Continue to Section ${d.next_module} →</a>`
                         : `<a href="/author/coaching" class="next-mod-btn">Back to Program Overview →</a>`;
 
                 completeResult.innerHTML = renderBullets(d.feedback_bullets, d.publisher_ready) + nextLink;

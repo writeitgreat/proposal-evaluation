@@ -103,7 +103,7 @@
 <div class="coaching-hero">
     <div style="max-width:1200px;margin:0 auto;">
         <h1>📖 Book Proposal Program</h1>
-        <p>Build every section of your publisher-ready proposal — one module at a time.</p>
+        <p>Build every section of your publisher-ready proposal — one section at a time.</p>
 
         {% if enrollment %}
         {% set pct = ((completed_count / total_modules) * 100)|int %}
@@ -129,8 +129,8 @@
         <div class="enroll-cta">
             <h3>Write your book proposal the right way</h3>
             <ul>
-                <li>7 focused modules — one for each section of a publisher-ready proposal</li>
-                <li>AI brainstorm assistant in every module to help you develop your ideas</li>
+                <li>7 sections — one for each part of a publisher-ready proposal</li>
+                <li>AI brainstorm assistant in every section to help you develop your ideas</li>
                 <li>Your writing saves automatically as you go</li>
                 <li>AI reviews each section and unlocks the next when it's ready</li>
                 <li>At the end, you have a complete proposal draft ready for submission</li>
@@ -144,12 +144,12 @@
     </div>
 </div>
 
-<!-- Module grid -->
-<div class="container" style="margin-top:2rem;margin-bottom:3rem;">
+<!-- Section grid -->
+<div class="container" style="margin-top:1rem;margin-bottom:3rem;">
 
     {% if enrollment and enrollment.status == 'completed' %}
     <div class="complete-banner">
-        <h3>🎉 Congratulations — All 7 Sections Complete!</h3>
+        <h3>🎉 Congratulations — All {{ total_modules }} Sections Complete!</h3>
         <p>Your proposal draft is finished. Submit it for a full professional evaluation to receive your tier rating, score breakdown, and advance estimate.</p>
         <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
             <a href="{{ url_for('author_coaching_proposal') }}" class="btn" style="background:white;border:1.5px solid #16a34a;color:#14532d;font-weight:700;text-decoration:none;padding:0.6rem 1.25rem;">
@@ -164,7 +164,7 @@
 
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
         <h3 style="color:var(--primary);margin:0;">
-            {{ 'Your 7 Sections' if enrollment else 'Program Overview' }}
+            {{ ('Your ' ~ total_modules ~ ' Sections') if enrollment else 'Program Overview' }}
         </h3>
         {% if has_any_content %}
         <a href="{{ url_for('author_coaching_proposal') }}"
