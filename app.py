@@ -2237,23 +2237,37 @@ def author_coaching_enroll():
     if not current_user.is_authenticated or not getattr(current_user, 'is_author', False):
         return redirect(url_for('author_login'))
 
-    # Prevent duplicate enrollments
-    existing = CoachingEnrollment.query.filter_by(
-        author_id=current_user.id, status='active').first()
-    if existing:
+    # The DB has a unique constraint on author_id so there can only be one
+    # enrollment per author. Check for any existing enrollment regardless of status.
+    existing = CoachingEnrollment.query.filter_by(author_id=current_user.id).first()
+    if existing and existing.status == 'active':
         return redirect(url_for('author_coaching_dashboard'))
 
     if request.method == 'POST':
         book_title = request.form.get('book_title', '').strip()
         try:
-            enrollment = CoachingEnrollment(
-                author_id=current_user.id,
-                book_title=book_title or None,
-                status='active',
-                current_module=1,
-            )
-            db.session.add(enrollment)
-            db.session.flush()
+            if existing:
+                # Re-enrollment: reset the existing record in place (unique constraint
+                # prevents creating a second row, so we update the existing one).
+                existing.book_title = book_title or existing.book_title
+                existing.status = 'active'
+                existing.current_module = 1
+                existing.completed_at = None
+                existing.welcome_email_sent = False
+                existing.complete_email_sent = False
+                enrollment = existing
+                # Remove stale progress rows so fresh ones are created below
+                AuthorModuleProgress.query.filter_by(enrollment_id=existing.id).delete()
+                db.session.flush()
+            else:
+                enrollment = CoachingEnrollment(
+                    author_id=current_user.id,
+                    book_title=book_title or None,
+                    status='active',
+                    current_module=1,
+                )
+                db.session.add(enrollment)
+                db.session.flush()
 
             # Create module progress rows: module 1 = in_progress, rest = locked
             for m in COACHING_MODULES:
