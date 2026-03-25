@@ -2938,6 +2938,12 @@ def author_coaching_module(module_order):
         approved_count=approved_count,
         hook_content=hook_content,
         module_resources=COACHING_MODULE_RESOURCES.get(module_order, {}),
+        kb_docs=KnowledgeBaseDocument.query.filter(
+            db.or_(
+                KnowledgeBaseDocument.module_order == module_order,
+                KnowledgeBaseDocument.module_order == None
+            )
+        ).order_by(KnowledgeBaseDocument.uploaded_at.desc()).all(),
     )
 
 

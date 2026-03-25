@@ -528,10 +528,10 @@
                 <span class="word-count"><span id="word-count">0</span> words</span>
                 <div class="writing-actions">
                     {% if not is_publisher_ready %}
-                    {% if module_resources %}
+                    {% if module_resources or kb_docs %}
                     <button id="btn-kb" class="btn" title="Examples, templates &amp; tips for this section"
                             style="background:white;border:1.5px solid var(--gray-300);color:var(--gray-700);font-size:0.875rem;padding:0.45rem 0.875rem;cursor:pointer;border-radius:var(--radius);">
-                        📚 Resources
+                        📚 Resources{% if kb_docs %} <span style="font-size:0.65rem;background:#7c3aed;color:white;border-radius:99px;padding:0.1rem 0.35rem;margin-left:0.2rem;">{{ kb_docs | length }}</span>{% endif %}
                     </button>
                     {% endif %}
                     <button id="btn-research" class="btn" style="background:white;border:1.5px solid #7c3aed;color:#7c3aed;font-size:0.875rem;padding:0.45rem 1rem;cursor:pointer;border-radius:var(--radius);">
@@ -602,7 +602,7 @@
     </div>
 
     <!-- Knowledge base drawer (slides in from the right) -->
-    {% if module_resources %}
+    {% if module_resources or kb_docs %}
     <div class="kb-drawer-overlay" id="kb-overlay"></div>
     <div class="kb-drawer" id="kb-drawer">
         <div class="kb-drawer-header">
@@ -631,6 +631,25 @@
                 <h4>📋 Templates</h4>
                 {% for tpl in module_resources.templates %}
                 <div class="kb-item">{{ tpl }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if kb_docs %}
+            <div class="kb-section">
+                <h4>📎 Uploaded Resources</h4>
+                {% for doc in kb_docs %}
+                <div class="kb-item" style="margin-bottom:0.625rem;">
+                    <div style="font-weight:600;font-size:0.8125rem;color:var(--gray-900);margin-bottom:0.2rem;">
+                        {% if doc.doc_type == 'example' %}✍️{% elif doc.doc_type == 'template' %}📋{% else %}📄{% endif %}
+                        {{ doc.title }}
+                        {% if doc.module_order == none %}
+                        <span style="font-size:0.7rem;color:var(--gray-400);font-weight:400;margin-left:0.3rem;">all modules</span>
+                        {% endif %}
+                    </div>
+                    {% if doc.content_text %}
+                    <div style="font-size:0.8rem;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto;">{{ doc.content_text[:800] }}{% if doc.content_text | length > 800 %}…{% endif %}</div>
+                    {% endif %}
+                </div>
                 {% endfor %}
             </div>
             {% endif %}
