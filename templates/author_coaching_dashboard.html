@@ -144,6 +144,8 @@
                 {% if enrollment.status == 'completed' %}
                 <a href="{{ url_for('index') }}" class="accent-link">Submit for evaluation →</a>
                 {% endif %}
+                <a href="{{ url_for('author_coaching_quickstart') }}">⚡ One-Pager</a>
+                <a href="{{ url_for('author_coaching_onboarding') }}">How it works →</a>
             </div>
         </div>
         {% else %}
