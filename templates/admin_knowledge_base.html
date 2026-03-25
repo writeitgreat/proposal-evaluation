@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base — Admin{% endblock %}
+
+{% block extra_css %}
+.page-header { background: var(--primary); color: white; padding: 1.5rem 2rem; }
+.page-header h1 { color: var(--accent); font-size: 1.25rem; margin: 0 0 0.25rem; }
+.page-header p  { color: rgba(255,255,255,0.7); font-size: 0.875rem; margin: 0; }
+
+.upload-card { background: white; border: 1.5px solid var(--gray-200); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; }
+.upload-card h2 { font-size: 0.9375rem; color: var(--primary); margin: 0 0 1rem; }
+.f-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+@media(max-width:640px) { .f-row { grid-template-columns: 1fr; } }
+.f-group { margin-bottom: 0.875rem; }
+.f-group label { display:block; font-size:0.8125rem; font-weight:600; color:var(--gray-700); margin-bottom:0.3rem; }
+.f-group input, .f-group select {
+    width:100%; padding:0.55rem 0.75rem; border:1.5px solid var(--gray-200);
+    border-radius:7px; font-size:0.875rem; font-family:inherit; box-sizing:border-box; color:var(--gray-900); background:white;
+}
+.f-group input:focus, .f-group select:focus { outline:none; border-color:var(--primary); }
+
+.doc-type-badge { font-size:0.7rem; font-weight:600; padding:0.15rem 0.45rem; border-radius:4px; }
+.doc-type-badge.example  { background:#fef3c7; color:#92400e; }
+.doc-type-badge.template { background:#dbeafe; color:#1e40af; }
+.doc-type-badge.resource { background:#f0fdf4; color:#166534; }
+.mod-tag { font-size:0.7rem; background:var(--gray-100); color:var(--gray-600); padding:0.15rem 0.45rem; border-radius:4px; }
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+            <h1>📚 Knowledge Base</h1>
+            <p>Upload training material that the AI coaching agent references per module</p>
+        </div>
+        <a href="{{ url_for('admin_dashboard') }}" style="color:rgba(255,255,255,0.7);font-size:0.875rem;text-decoration:none;">← Dashboard</a>
+    </div>
+</div>
+
+<div class="container" style="margin-top:1.5rem;">
+
+    <!-- Upload form -->
+    <div class="upload-card">
+        <h2>Upload New Document</h2>
+        <form method="POST" action="{{ url_for('admin_knowledge_base_upload') }}" enctype="multipart/form-data">
+            <div class="f-group">
+                <label>Document Title *</label>
+                <input type="text" name="title" required placeholder="e.g. Strong Hook Examples — Module 1">
+            </div>
+            <div class="f-row">
+                <div class="f-group">
+                    <label>Related Module <span style="font-weight:400;color:var(--gray-400);">(optional — leave blank for all modules)</span></label>
+                    <select name="module_order">
+                        <option value="">All Modules</option>
+                        {% for m in modules %}
+                        <option value="{{ m.order }}">Section {{ m.order }}: {{ m.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="f-group">
+                    <label>Document Type</label>
+                    <select name="doc_type">
+                        <option value="example">Example Proposal Section</option>
+                        <option value="template">WIG Template</option>
+                        <option value="resource">Resource / Article</option>
+                    </select>
+                </div>
+            </div>
+            <div class="f-group">
+                <label>File (PDF, Word, or TXT) *</label>
+                <input type="file" name="doc_file" accept=".pdf,.doc,.docx,.txt" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="font-size:0.875rem;padding:0.6rem 1.25rem;">
+                Upload Document →
+            </button>
+        </form>
+    </div>
+
+    <!-- Existing documents -->
+    {% if docs %}
+    <div class="card" style="padding:0;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">
+                    <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8125rem;color:var(--gray-600);">Title</th>
+                    <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8125rem;color:var(--gray-600);">Type</th>
+                    <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8125rem;color:var(--gray-600);">Module</th>
+                    <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8125rem;color:var(--gray-600);">Uploaded</th>
+                    <th style="padding:0.75rem 1rem;text-align:left;font-size:0.8125rem;color:var(--gray-600);">By</th>
+                    <th style="padding:0.75rem 1rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in docs %}
+                <tr style="border-bottom:1px solid var(--gray-100);"
+                    onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+                    <td style="padding:0.875rem 1rem;">
+                        <div style="font-weight:600;font-size:0.875rem;color:var(--gray-900);">{{ doc.title }}</div>
+                        <div style="font-size:0.75rem;color:var(--gray-400);">{{ doc.filename }}</div>
+                    </td>
+                    <td style="padding:0.875rem 1rem;">
+                        <span class="doc-type-badge {{ doc.doc_type }}">{{ doc.doc_type | title }}</span>
+                    </td>
+                    <td style="padding:0.875rem 1rem;">
+                        {% if doc.module_order %}
+                        <span class="mod-tag">Section {{ doc.module_order }}</span>
+                        {% else %}
+                        <span style="font-size:0.75rem;color:var(--gray-400);">All</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.875rem 1rem;font-size:0.8125rem;color:var(--gray-500);">
+                        {{ doc.uploaded_at.strftime('%b %d, %Y') }}
+                    </td>
+                    <td style="padding:0.875rem 1rem;font-size:0.8125rem;color:var(--gray-500);">
+                        {{ doc.uploaded_by }}
+                    </td>
+                    <td style="padding:0.875rem 1rem;">
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <a href="{{ url_for('admin_knowledge_base_download', doc_id=doc.id) }}"
+                               style="font-size:0.8125rem;color:var(--primary);text-decoration:none;">Download</a>
+                            <form method="POST" action="{{ url_for('admin_knowledge_base_delete', doc_id=doc.id) }}"
+                                  onsubmit="return confirm('Delete this document?');" style="display:inline;">
+                                <button type="submit" style="background:none;border:none;color:#dc2626;font-size:0.8125rem;cursor:pointer;padding:0;">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:3rem;color:var(--gray-500);">
+        <p>No documents uploaded yet. Upload your first one above.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

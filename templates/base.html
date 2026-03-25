@@ -20,7 +20,9 @@
                 {% if current_user.is_authenticated and current_user.is_team_member %}
                 {# Team member nav #}
                 <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('admin_pipeline') }}">Pipeline</a>
                 <a href="{{ url_for('admin_coaching_list') }}">Coaching</a>
+                <a href="{{ url_for('admin_knowledge_base') }}">KB</a>
                 {% if current_user.is_admin %}
                 <a href="{{ url_for('admin_team') }}">Team</a>
                 {% endif %}

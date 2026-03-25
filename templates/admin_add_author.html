@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Add New Author — Admin{% endblock %}
+
+{% block extra_css %}
+.page-header { background: var(--primary); color: white; padding: 1.5rem 2rem; }
+.page-header h1 { color: var(--accent); font-size: 1.25rem; margin: 0 0 0.25rem; }
+.page-header p  { color: rgba(255,255,255,0.7); font-size: 0.875rem; margin: 0; }
+.form-card { max-width: 560px; margin: 2rem auto; background: white; border: 1.5px solid var(--gray-200); border-radius: var(--radius); padding: 1.75rem 2rem; }
+.form-card h2 { font-size: 1rem; color: var(--primary); margin: 0 0 1.25rem; }
+.f-group { margin-bottom: 1.125rem; }
+.f-group label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--gray-800); margin-bottom: 0.35rem; }
+.f-group input, .f-group select {
+    width: 100%; padding: 0.6rem 0.875rem; border: 1.5px solid var(--gray-200);
+    border-radius: 7px; font-size: 0.9rem; font-family: inherit; box-sizing: border-box;
+    color: var(--gray-900); background: white;
+}
+.f-group input:focus, .f-group select:focus { outline: none; border-color: var(--primary); }
+.f-hint { font-size: 0.775rem; color: var(--gray-400); margin-top: 0.25rem; }
+.path-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; }
+.path-card { border: 1.5px solid var(--gray-200); border-radius: 8px; padding: 0.875rem 1rem; cursor: pointer; }
+.path-card input[type="radio"] { margin-right: 0.4rem; }
+.path-card strong { font-size: 0.875rem; color: var(--gray-900); }
+.path-card p { font-size: 0.775rem; color: var(--gray-500); margin: 0.25rem 0 0; }
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+            <h1>Add New Author</h1>
+            <p>Create an account on behalf of a prospect and send them an invite link</p>
+        </div>
+        <a href="{{ url_for('admin_pipeline') }}" style="color:rgba(255,255,255,0.7);font-size:0.875rem;text-decoration:none;">← Pipeline</a>
+    </div>
+</div>
+
+<div class="container" style="padding-top:0;">
+    <div class="form-card">
+        <h2>New Author Account</h2>
+        <form method="POST">
+            <div class="f-group">
+                <label>Full Name *</label>
+                <input type="text" name="name" required placeholder="Jane Smith" autofocus>
+            </div>
+            <div class="f-group">
+                <label>Email Address *</label>
+                <input type="email" name="email" required placeholder="jane@example.com">
+                <p class="f-hint">They'll receive an invite link to set their own password.</p>
+            </div>
+            <div class="f-group">
+                <label>Starting Path <span style="font-weight:400;color:var(--gray-400);">(optional)</span></label>
+                <div class="path-cards">
+                    <label class="path-card">
+                        <input type="radio" name="assigned_path" value="">
+                        <strong>Let them choose</strong>
+                        <p>They'll see all options on the dashboard</p>
+                    </label>
+                    <label class="path-card">
+                        <input type="radio" name="assigned_path" value="one_pager">
+                        <strong>⚡ One-Pager</strong>
+                        <p>Fast 45-min guided summary</p>
+                    </label>
+                    <label class="path-card">
+                        <input type="radio" name="assigned_path" value="full_proposal">
+                        <strong>📖 Full Proposal</strong>
+                        <p>Complete 7-section program</p>
+                    </label>
+                </div>
+            </div>
+            <div style="display:flex;gap:0.75rem;margin-top:1.5rem;">
+                <button type="submit" class="btn btn-primary" style="padding:0.75rem 1.5rem;">
+                    Create Account &amp; Send Invite →
+                </button>
+                <a href="{{ url_for('admin_pipeline') }}" class="btn" style="padding:0.75rem 1rem;background:white;border:1.5px solid var(--gray-300);color:var(--gray-600);text-decoration:none;">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
