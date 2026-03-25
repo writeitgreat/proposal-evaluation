@@ -596,6 +596,12 @@ class Author(UserMixin, db.Model):
             return False
         return True
 
+    # Admin-created account fields
+    pending_setup = db.Column(db.Boolean, default=False)   # True until they set their own password
+    admin_created = db.Column(db.Boolean, default=False)   # Created by admin on their behalf
+    assigned_path = db.Column(db.String(30))               # 'full_proposal' | 'one_pager' | None
+    last_login_at = db.Column(db.DateTime)
+
     # These properties keep templates simple
     @property
     def is_admin(self):
@@ -807,6 +813,48 @@ class CoachingModuleContent(db.Model):
     last_saved_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint('enrollment_id', 'module_order'),)
+
+
+class OnePagerSubmission(db.Model):
+    """Stores quick one-pager submissions (answers + AI-generated summary)"""
+    __tablename__ = 'one_pager_submission'
+    id = db.Column(db.Integer, primary_key=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('author.id'), nullable=False)
+    book_title = db.Column(db.String(500))
+    answers_json = db.Column(db.Text)          # JSON: {problem, reader, different, why_you, marketing}
+    summary_text = db.Column(db.Text)          # AI-generated summary
+    status = db.Column(db.String(20), default='draft')   # 'draft' | 'submitted'
+    submitted_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    admin_notes = db.Column(db.Text)
+
+    author = db.relationship('Author', backref=db.backref('one_pager_submissions', lazy='dynamic'))
+
+
+class KnowledgeBaseDocument(db.Model):
+    """Admin-uploaded training/reference documents per module"""
+    __tablename__ = 'knowledge_base_document'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(300), nullable=False)
+    filename = db.Column(db.String(300))
+    content_text = db.Column(db.Text)          # Extracted plain text for AI context
+    file_data = db.Column(db.LargeBinary)      # Raw file bytes
+    file_type = db.Column(db.String(10))       # 'pdf', 'docx', 'txt'
+    module_order = db.Column(db.Integer)       # NULL = applies to all modules
+    doc_type = db.Column(db.String(30), default='resource')  # 'example' | 'template' | 'resource'
+    uploaded_by = db.Column(db.String(200))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class AuthorEngagementEmail(db.Model):
+    """Tracks automated re-engagement emails sent to authors (hard cap: 3 total)"""
+    __tablename__ = 'author_engagement_email'
+    id = db.Column(db.Integer, primary_key=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('author.id'), nullable=False)
+    email_type = db.Column(db.String(60))      # see REENGAGEMENT_TYPES
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    author = db.relationship('Author', backref=db.backref('engagement_emails', lazy='dynamic'))
 
 
 @login_manager.user_loader
@@ -1978,6 +2026,228 @@ def send_coaching_complete_email(author, enrollment):
 
 
 # ============================================================================
+# ADMIN INVITE & ONE-PAGER EMAILS
+# ============================================================================
+
+def send_author_welcome_invite_email(author, token):
+    """Admin-created account: send invite email with set-password link"""
+    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    set_url = f"{app_url}/author/reset-password/{token}"
+    path_line = ''
+    if author.assigned_path == 'one_pager':
+        path_line = '<p>You\'ve been set up to start with the <strong>Quick One-Pager</strong> — a fast, guided experience to capture your book idea in one page.</p>'
+    elif author.assigned_path == 'full_proposal':
+        path_line = '<p>You\'ve been set up for the <strong>Full Proposal Program</strong> — a step-by-step guide to building a publisher-ready book proposal.</p>'
+    html_content = f"""<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
+    <div style="max-width:600px;margin:0 auto;padding:20px;">
+        {_coaching_email_header()}
+        <p>Hi {author.name},</p>
+        <p>Welcome to <strong>Write It Great</strong>! Your account has been created and you're ready to get started.</p>
+        {path_line}
+        <p>Click the button below to set your password and access your account:</p>
+        <p style="text-align:center;margin:2rem 0;">
+            <a href="{set_url}" style="display:inline-block;padding:14px 28px;background:#2D1B69;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">
+                Set My Password &amp; Get Started →
+            </a>
+        </p>
+        <p style="font-size:0.85rem;color:#666;">This link expires in 48 hours. If you have any questions, just reply to this email.</p>
+        {_coaching_email_footer()}
+    </div></body></html>"""
+    try:
+        return send_email(author.email, 'Your Write It Great Access Is Ready', html_content)
+    except Exception as e:
+        print(f"Invite email error: {e}")
+        return False
+
+
+def send_one_pager_submitted_notification(author, submission):
+    """Notify the WIG team when an author submits their one-pager for review"""
+    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    admin_url = f"{app_url}/admin/one-pager/{submission.id}"
+    answers = json.loads(submission.answers_json) if submission.answers_json else {}
+    html_content = f"""<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
+    <div style="max-width:600px;margin:0 auto;padding:20px;">
+        <h2 style="color:#2D1B69;">📄 New One-Pager Submission</h2>
+        <p><strong>{author.name}</strong> ({author.email}) has submitted their one-pager for review.</p>
+        <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+            <tr><td style="padding:6px;font-weight:bold;width:140px;">Book title:</td><td style="padding:6px;">{submission.book_title or '—'}</td></tr>
+            <tr style="background:#f9f9f9;"><td style="padding:6px;font-weight:bold;">Problem solved:</td><td style="padding:6px;">{answers.get('problem','—')[:200]}</td></tr>
+            <tr><td style="padding:6px;font-weight:bold;">Target reader:</td><td style="padding:6px;">{answers.get('reader','—')[:200]}</td></tr>
+        </table>
+        <p><a href="{admin_url}" style="display:inline-block;padding:12px 24px;background:#B8F2B8;color:#1a3a1a;text-decoration:none;border-radius:5px;font-weight:bold;">View Full One-Pager →</a></p>
+    </div></body></html>"""
+    for team_email in TEAM_EMAILS:
+        if team_email.strip():
+            send_email(team_email.strip(), f"One-Pager Submitted: {author.name}", html_content)
+
+
+# ── Re-engagement email copy ──────────────────────────────────────────────────
+REENGAGEMENT_PROMPTS = [
+    "Who's the one person you'd hand this book to first, and why?",
+    "What's the thing you wish someone had told you earlier that this book would say?",
+    "If a journalist wrote a headline about your book's impact in 5 years, what would it say?",
+]
+
+REENGAGEMENT_TYPES = {
+    'never_started':        'Your proposal is waiting — here\'s how to begin in 10 minutes',
+    'stalled_one_pager':    'You\'ve already started something great — one question to get unstuck',
+    'one_pager_to_full':    'Your one-pager showed real promise. Ready to take it further?',
+    'stalled_full_proposal':'Look at the progress you\'ve made. Don\'t stop now.',
+    'dormant_30_days':      'We saved your work. It\'s still here whenever you\'re ready.',
+}
+
+
+def send_reengagement_email(author, email_type, module_name='', completed_count=0):
+    """Send a warm re-engagement email. Returns True if sent."""
+    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    subject_map = {
+        'never_started':        'Your proposal is waiting — here\'s how to begin in 10 minutes',
+        'stalled_one_pager':    'You\'ve already started something great ✨',
+        'one_pager_to_full':    'Your one-pager showed real promise. Ready for the next step?',
+        'stalled_full_proposal': ("You're " + str(completed_count) + " section" + ("s" if completed_count != 1 else "") + " in — don't stop now" if completed_count else "Keep going — don't stop now"),
+        'dormant_30_days':      'We saved your work. It\'s still here.',
+    }
+    import random
+    prompt = random.choice(REENGAGEMENT_PROMPTS)
+    body_map = {
+        'never_started': f"""<p>Hi {author.name},</p>
+            <p>Your Write It Great account is all set up, and your book idea is waiting to come to life. Getting started is easier than you think — authors who try one question often can't stop.</p>
+            <p><strong>Here's your first move:</strong> Pick up the One-Pager. It's five questions and about 45 minutes. That's all you need to turn your idea into something concrete.</p>
+            <p>A question to get your pen moving: <em>"{prompt}"</em></p>""",
+        'stalled_one_pager': f"""<p>Hi {author.name},</p>
+            <p>You started something — and that takes guts. Your answers are saved and ready for you exactly where you left them.</p>
+            <p>Here's a question to get unstuck: <em>"{prompt}"</em></p>
+            <p>You don't need to have everything figured out. Just write what's true right now.</p>""",
+        'one_pager_to_full': f"""<p>Hi {author.name},</p>
+            <p>Your one-pager is done — and what you wrote showed genuine promise. A lot of authors stop there. The ones who get published don't.</p>
+            <p>The Full Proposal Program takes you section by section with AI coaching at every step. Your one-pager content seeds it automatically.</p>""",
+        'stalled_full_proposal': f"""<p>Hi {author.name},</p>
+            <p>{"You've already completed " + str(completed_count) + " section" + ("s" if completed_count != 1 else "") + (" of your proposal" if completed_count else "") + "." if completed_count else "Your proposal draft is waiting."} That's real work. It would be a shame to leave it unfinished.</p>
+            <p>Here's a question to get you back into it: <em>"{prompt}"</em></p>
+            <p>{"Section " + str(completed_count + 1) if completed_count else "Your next section"} is unlocked and ready whenever you are.</p>""",
+        'dormant_30_days': f"""<p>Hi {author.name},</p>
+            <p>We haven't seen you in a while — and that's okay. Life gets busy. But your work is still here, exactly where you left it, waiting for you.</p>
+            <p>Whenever you're ready, so are we.</p>""",
+    }
+    cta_map = {
+        'never_started':        (f"{app_url}/author/coaching/quickstart", 'Start My One-Pager →'),
+        'stalled_one_pager':    (f"{app_url}/author/coaching/quickstart", 'Pick Up Where I Left Off →'),
+        'one_pager_to_full':    (f"{app_url}/author/coaching", 'Start the Full Program →'),
+        'stalled_full_proposal':(f"{app_url}/author/coaching", 'Continue My Proposal →'),
+        'dormant_30_days':      (f"{app_url}/author/coaching", 'Back to My Work →'),
+    }
+    body = body_map.get(email_type, '')
+    cta_url, cta_text = cta_map.get(email_type, (f"{app_url}/author/coaching", 'Back to My Work →'))
+    html_content = f"""<html><body style="font-family:Arial,sans-serif;line-height:1.7;color:#333;">
+    <div style="max-width:600px;margin:0 auto;padding:24px;">
+        {_coaching_email_header()}
+        {body}
+        <p style="text-align:center;margin:2rem 0;">
+            <a href="{cta_url}" style="display:inline-block;padding:14px 28px;background:#2D1B69;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">{cta_text}</a>
+        </p>
+        <p style="font-size:0.8rem;color:#999;text-align:center;">You're receiving this because you signed up at Write It Great. Reply any time — we read every email.</p>
+        {_coaching_email_footer()}
+    </div></body></html>"""
+    subject = subject_map.get(email_type, 'A note from Write It Great')
+    try:
+        result = send_email(author.email, subject, html_content)
+        if result:
+            record = AuthorEngagementEmail(author_id=author.id, email_type=email_type)
+            db.session.add(record)
+            db.session.commit()
+        return result
+    except Exception as e:
+        print(f"Re-engagement email error: {e}")
+        return False
+
+
+def check_reengagement_emails():
+    """Check all authors and send re-engagement emails where triggered.
+    Called from a background thread once per hour."""
+    with app.app_context():
+        try:
+            now = datetime.utcnow()
+            authors = Author.query.filter_by(pending_setup=False).all()
+            for author in authors:
+                # Hard cap: max 3 automated emails total
+                sent_count = author.engagement_emails.count()
+                if sent_count >= 3:
+                    continue
+                # Never send more than one email per 7-day window
+                last = author.engagement_emails.order_by(
+                    AuthorEngagementEmail.sent_at.desc()).first()
+                if last and (now - last.sent_at).days < 7:
+                    continue
+
+                enrollment = CoachingEnrollment.query.filter_by(
+                    author_id=author.id, status='active').first()
+                one_pager = author.one_pager_submissions.order_by(
+                    OnePagerSubmission.created_at.desc()).first()
+                days_since_login = (
+                    (now - author.last_login_at).days if author.last_login_at
+                    else (now - author.created_at).days
+                )
+
+                # Stop if author has submitted for review
+                if one_pager and one_pager.status == 'submitted':
+                    continue
+
+                email_type = None
+                completed_count = 0
+
+                if days_since_login >= 30:
+                    email_type = 'dormant_30_days'
+                elif not enrollment and not one_pager:
+                    # Never started — account created but no activity
+                    days_since_created = (now - author.created_at).days
+                    if days_since_created >= 7:
+                        email_type = 'never_started'
+                elif one_pager and not enrollment:
+                    # Has one-pager; check if stalled or done
+                    if one_pager.summary_text and (now - one_pager.created_at).days >= 14:
+                        email_type = 'one_pager_to_full'
+                    elif not one_pager.summary_text and (now - one_pager.created_at).days >= 7:
+                        email_type = 'stalled_one_pager'
+                elif enrollment:
+                    all_mp = list(enrollment.module_progress.all())
+                    completed_count = sum(1 for mp in all_mp if mp.status == 'approved')
+                    last_hw = HomeworkSubmission.query.filter_by(
+                        enrollment_id=enrollment.id
+                    ).order_by(HomeworkSubmission.submitted_at.desc()).first()
+                    last_chat = CoachingChatMessage.query.filter_by(
+                        enrollment_id=enrollment.id, role='user'
+                    ).order_by(CoachingChatMessage.created_at.desc()).first()
+                    dates = [d for d in [
+                        last_hw.submitted_at if last_hw else None,
+                        last_chat.created_at if last_chat else None,
+                        enrollment.enrolled_at,
+                    ] if d]
+                    last_activity = max(dates) if dates else enrollment.enrolled_at
+                    days_stalled = (now - last_activity).days
+                    if days_stalled >= 7:
+                        email_type = 'stalled_full_proposal'
+
+                if email_type:
+                    types_already_sent = {e.email_type for e in author.engagement_emails.all()}
+                    if email_type not in types_already_sent:
+                        send_reengagement_email(author, email_type, completed_count=completed_count)
+        except Exception as e:
+            print(f"Re-engagement check error: {e}")
+
+
+def _start_reengagement_thread():
+    """Background thread that checks re-engagement emails every hour."""
+    import time
+    def _loop():
+        time.sleep(300)  # wait 5 min after startup before first run
+        while True:
+            check_reengagement_emails()
+            time.sleep(3600)  # run every hour
+    t = threading.Thread(target=_loop, daemon=True)
+    t.start()
+
+
+# ============================================================================
 # PUBLIC ROUTES
 # ============================================================================
 
@@ -2188,6 +2458,28 @@ def _get_or_create_module_progress(enrollment_id, module_order):
     return mp
 
 
+def _get_kb_context(module_order):
+    """Return relevant knowledge base content to append to the system prompt."""
+    try:
+        docs = KnowledgeBaseDocument.query.filter(
+            db.or_(
+                KnowledgeBaseDocument.module_order == module_order,
+                KnowledgeBaseDocument.module_order == None
+            )
+        ).order_by(KnowledgeBaseDocument.uploaded_at.desc()).limit(3).all()
+        if not docs:
+            return ''
+        parts = ['\n\nKNOWLEDGE BASE — REFERENCE MATERIALS FOR THIS MODULE:']
+        for doc in docs:
+            if doc.content_text:
+                snippet = doc.content_text[:1500].strip()
+                label = f'[{doc.doc_type.upper()}] {doc.title}'
+                parts.append(f'\n{label}:\n{snippet}')
+        return '\n'.join(parts)
+    except Exception:
+        return ''
+
+
 def _build_module_system_prompt(module_info, author_name, book_title):
     """Build a module-specific coaching system prompt"""
     order = module_info['order']
@@ -2247,7 +2539,7 @@ YOUR COACHING STYLE:
 HOMEWORK FOR THIS MODULE:
 {module_info['homework_prompt']}
 
-When the author is ready to write their homework, encourage them warmly. They can see the homework area below the chat — you don't need to direct them to it explicitly."""
+When the author is ready to write their homework, encourage them warmly. They can see the homework area below the chat — you don't need to direct them to it explicitly.{_get_kb_context(order)}"""
 
 
 def _review_homework_with_ai(module_info, content, author_name, book_title):
@@ -2473,62 +2765,113 @@ def author_coaching_onboarding():
 
 @app.route('/author/coaching/quickstart', methods=['GET', 'POST'])
 def author_coaching_quickstart():
-    """Quick One-Pager Mode — 5-question entry point for early-stage authors.
-    Generates a lightweight one-page proposal summary they can download or use
-    to seed the full coaching program."""
+    """Quick One-Pager Mode — 5-question entry point for early-stage authors."""
     if not current_user.is_authenticated or not getattr(current_user, 'is_author', False):
         return redirect(url_for('author_login'))
 
+    # Load most recent draft submission for this author (if any)
+    existing = current_user.one_pager_submissions.order_by(
+        OnePagerSubmission.created_at.desc()).first()
+
     if request.method == 'POST':
         answers = {
-            'concept':    request.form.get('concept', '').strip(),
-            'reader':     request.form.get('reader', '').strip(),
-            'why_you':    request.form.get('why_you', '').strip(),
-            'comps':      request.form.get('comps', '').strip(),
-            'platform':   request.form.get('platform', '').strip(),
-            'book_title': request.form.get('book_title', '').strip(),
+            'problem':   request.form.get('problem', '').strip(),
+            'reader':    request.form.get('reader', '').strip(),
+            'different': request.form.get('different', '').strip(),
+            'why_you':   request.form.get('why_you', '').strip(),
+            'marketing': request.form.get('marketing', '').strip(),
+            'book_title':request.form.get('book_title', '').strip(),
         }
-        if not all([answers['concept'], answers['reader'], answers['why_you']]):
-            flash('Please fill in at least the first three questions.', 'error')
-            return render_template('author_coaching_quickstart.html', answers=answers)
+        if not all([answers['problem'], answers['reader'], answers['why_you']]):
+            flash('Please fill in at least questions 1, 2, and 4.', 'error')
+            return render_template('author_coaching_quickstart.html', answers=answers,
+                                   submission=existing)
 
         try:
-            prompt = f"""You are an expert book proposal coach. An author has answered 5 quick questions about their nonfiction book. Generate a clean, one-page proposal summary they can use as a starting point.
+            prompt = f"""You are an expert book proposal coach at Write It Great. An author has answered 5 focused questions about their nonfiction book. Generate a clean, compelling one-page proposal summary.
 
 AUTHOR'S ANSWERS:
-Book title (working): {answers['book_title'] or 'Not yet decided'}
-1. What is the book about? {answers['concept']}
-2. Target reader: {answers['reader']}
-3. Why this author? {answers['why_you']}
-4. Comparable titles: {answers['comps'] or 'Not provided'}
-5. Platform / reach: {answers['platform'] or 'Not provided'}
+Working title: {answers['book_title'] or 'Not yet decided'}
+1. What problem does your book solve? {answers['problem']}
+2. Who is your target reader? {answers['reader']}
+3. Why is your book different from what's already out there? {answers['different'] or 'Not provided'}
+4. Why are you the right person to write it? {answers['why_you']}
+5. How do you plan to market it? {answers['marketing'] or 'Not provided'}
 
 Write a one-page proposal summary with these sections:
-- **The Book** (2-3 sentences: hook, concept, why now)
-- **The Reader** (1-2 sentences: specific target audience)
-- **The Author** (2-3 sentences: credentials and unique position)
-- **The Market** (1-2 sentences: comp titles and gap)
-- **Platform Snapshot** (1-2 sentences: reach and marketing potential)
-- **Next Steps** (2-3 bullet points: what to strengthen before a full submission)
+- **The Problem & Promise** (2-3 sentences: the gap this book fills, why it matters now)
+- **The Reader** (1-2 sentences: specific target audience — demographic and psychographic)
+- **What Makes This Book Different** (2-3 sentences: unique angle, methodology, or perspective)
+- **The Author** (2-3 sentences: credentials and unique position to write this)
+- **Marketing Potential** (1-2 sentences: platform, reach, and promotional opportunities)
+- **Next Steps** (2-3 bullet points: what to develop further before a full submission)
 
-Tone: professional but warm. Be specific and encouraging. Use their actual words where possible."""
+Tone: professional, warm, and specific. Use the author's actual words and voice. Do not pad — be crisp."""
 
             response = client.chat.completions.create(
                 model='gpt-4o-mini',
                 messages=[{'role': 'user', 'content': prompt}],
                 temperature=0.7,
-                max_tokens=900,
+                max_tokens=950,
             )
             summary = response.choices[0].message.content.strip()
         except Exception as e:
             print(f'Quickstart AI error: {e}')
             summary = None
 
+        # Save / update the submission record
+        try:
+            if existing and existing.status == 'draft':
+                submission = existing
+            else:
+                submission = OnePagerSubmission(author_id=current_user.id)
+                db.session.add(submission)
+            submission.book_title = answers['book_title'] or None
+            submission.answers_json = json.dumps(answers)
+            submission.summary_text = summary
+            db.session.commit()
+        except Exception as e:
+            print(f'One-pager save error: {e}')
+            submission = None
+
         return render_template('author_coaching_quickstart.html',
                                answers=answers,
-                               summary=summary)
+                               summary=summary,
+                               submission=submission)
 
-    return render_template('author_coaching_quickstart.html', answers={}, summary=None)
+    # GET: pre-fill from existing draft
+    if existing and existing.answers_json:
+        prefill = json.loads(existing.answers_json)
+    else:
+        prefill = {}
+    return render_template('author_coaching_quickstart.html', answers=prefill,
+                           summary=existing.summary_text if existing else None,
+                           submission=existing)
+
+
+@app.route('/author/coaching/quickstart/submit', methods=['POST'])
+def author_quickstart_submit():
+    """Author submits their one-pager to the WIG team for review."""
+    if not current_user.is_authenticated or not getattr(current_user, 'is_author', False):
+        return redirect(url_for('author_login'))
+    submission_id = request.form.get('submission_id', type=int)
+    submission = OnePagerSubmission.query.filter_by(
+        id=submission_id, author_id=current_user.id).first()
+    if not submission or not submission.summary_text:
+        flash('No one-pager found to submit. Please generate it first.', 'error')
+        return redirect(url_for('author_coaching_quickstart'))
+    if submission.status == 'submitted':
+        flash('Your one-pager has already been submitted.', 'info')
+        return redirect(url_for('author_coaching_quickstart'))
+    submission.status = 'submitted'
+    submission.submitted_at = datetime.utcnow()
+    db.session.commit()
+    try:
+        send_one_pager_submitted_notification(current_user, submission)
+    except Exception:
+        pass
+    flash('Your one-pager has been sent to the Write It Great team. We\'ll be in touch!', 'success')
+    return redirect(url_for('author_coaching_quickstart'))
 
 
 @app.route('/author/coaching/module/<int:module_order>')
@@ -3399,7 +3742,14 @@ def author_login():
         if author and author.check_password(password):
             session['user_type'] = 'author'
             login_user(author)
-            return redirect(url_for('author_dashboard'))
+            author.last_login_at = datetime.utcnow()
+            if author.pending_setup:
+                author.pending_setup = False
+            db.session.commit()
+            next_url = request.args.get('next')
+            if author.assigned_path == 'one_pager' and not next_url:
+                return redirect(url_for('author_coaching_quickstart'))
+            return redirect(next_url or url_for('author_dashboard'))
 
         flash('Invalid email or password.', 'error')
 
@@ -4958,19 +5308,285 @@ def admin_coaching_reset_enrollment(enrollment_id):
     enrollment.complete_email_sent = False
     # welcome_email_sent kept True so the welcome email isn't re-sent
 
-    # Re-create clean module progress rows
+    # Re-create clean module progress rows — all unlocked
+    now_dt = datetime.utcnow()
     for m in COACHING_MODULES:
         mp = AuthorModuleProgress(
             enrollment_id=enrollment_id,
             module_order=m['order'],
-            status='in_progress' if m['order'] == 1 else 'locked',
-            unlocked_at=datetime.utcnow() if m['order'] == 1 else None,
+            status='in_progress',
+            unlocked_at=now_dt,
         )
         db.session.add(mp)
 
     db.session.commit()
     flash(f'Enrollment for {author_name} has been fully reset to Module 1.', 'success')
     return redirect(url_for('admin_coaching_detail', enrollment_id=enrollment_id))
+
+
+# ============================================================================
+# ADMIN — CREATE AUTHOR ACCOUNT
+# ============================================================================
+
+@app.route('/admin/authors/add', methods=['GET', 'POST'])
+@team_required
+def admin_add_author():
+    """Admin creates an author account on behalf of a prospect."""
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        assigned_path = request.form.get('assigned_path', '') or None
+
+        if not name or not email:
+            flash('Name and email are required.', 'error')
+            return render_template('admin_add_author.html')
+
+        if Author.query.filter_by(email=email).first():
+            flash(f'An account for {email} already exists.', 'error')
+            return render_template('admin_add_author.html')
+
+        # Create account with placeholder password; author will set their own
+        author = Author(
+            email=email,
+            name=name,
+            pending_setup=True,
+            admin_created=True,
+            assigned_path=assigned_path,
+        )
+        author.set_password(uuid.uuid4().hex)   # random unusable password
+        token = author.generate_reset_token()
+        # Give them 48 hours to set their password
+        author.password_reset_expires = datetime.utcnow() + timedelta(hours=48)
+        db.session.add(author)
+        db.session.commit()
+
+        sent = send_author_welcome_invite_email(author, token)
+        if sent:
+            flash(f'Account created and invite sent to {email}.', 'success')
+        else:
+            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            setup_url = f"{app_url}/author/reset-password/{token}"
+            flash(f'Account created for {email}. Email could not be sent — share this link manually: {setup_url}', 'warning')
+
+        return redirect(url_for('admin_pipeline'))
+
+    return render_template('admin_add_author.html')
+
+
+# ============================================================================
+# ADMIN — AUTHOR PIPELINE TRACKER
+# ============================================================================
+
+@app.route('/admin/pipeline')
+@team_required
+def admin_pipeline():
+    """Author pipeline tracker — both One-Pager and Full Proposal paths."""
+    now = datetime.utcnow()
+
+    # All authors
+    authors = Author.query.order_by(Author.created_at.desc()).all()
+
+    rows = []
+    for author in authors:
+        enrollment = CoachingEnrollment.query.filter_by(
+            author_id=author.id, status='active').first()
+        one_pager = author.one_pager_submissions.order_by(
+            OnePagerSubmission.created_at.desc()).first()
+
+        # Determine path
+        if enrollment:
+            path = 'Full Proposal'
+        elif author.assigned_path == 'one_pager' or one_pager:
+            path = 'One-Pager'
+        elif author.assigned_path == 'full_proposal':
+            path = 'Full Proposal'
+        else:
+            path = '—'
+
+        # Current step
+        if enrollment:
+            all_mp = list(enrollment.module_progress.order_by(
+                AuthorModuleProgress.module_order).all())
+            completed = sum(1 for mp in all_mp if mp.status == 'approved')
+            current_step = f'Section {enrollment.current_module} of {len(COACHING_MODULES)}'
+        else:
+            completed = 0
+            current_step = 'One-Pager' if one_pager else '—'
+
+        # Last active date
+        dates = [author.created_at]
+        if author.last_login_at:
+            dates.append(author.last_login_at)
+        if enrollment:
+            last_chat = CoachingChatMessage.query.filter_by(
+                enrollment_id=enrollment.id, role='user'
+            ).order_by(CoachingChatMessage.created_at.desc()).first()
+            last_hw = HomeworkSubmission.query.filter_by(
+                enrollment_id=enrollment.id
+            ).order_by(HomeworkSubmission.submitted_at.desc()).first()
+            if last_chat:
+                dates.append(last_chat.created_at)
+            if last_hw:
+                dates.append(last_hw.submitted_at)
+        if one_pager:
+            dates.append(one_pager.created_at)
+            if one_pager.submitted_at:
+                dates.append(one_pager.submitted_at)
+        last_active = max(dates)
+        days_inactive = (now - last_active).days
+
+        # Stage label
+        if author.pending_setup:
+            stage = 'Pending Setup'
+        elif one_pager and one_pager.status == 'submitted':
+            stage = 'Submitted for Review'
+        elif enrollment and enrollment.status == 'completed':
+            stage = 'Proposal Complete'
+        elif days_inactive >= 7 and (enrollment or one_pager):
+            stage = 'Stalled'
+        elif enrollment or one_pager:
+            stage = 'In Progress'
+        else:
+            stage = 'Not Started'
+
+        rows.append({
+            'author': author,
+            'path': path,
+            'current_step': current_step,
+            'completed': completed,
+            'last_active': last_active,
+            'days_inactive': days_inactive,
+            'stage': stage,
+            'one_pager': one_pager,
+            'enrollment': enrollment,
+        })
+
+    # Summary stats
+    total = len(authors)
+    active_7 = sum(1 for r in rows if r['days_inactive'] < 7 and r['stage'] not in ('Pending Setup', 'Not Started'))
+    stalled = sum(1 for r in rows if r['stage'] == 'Stalled')
+    one_pager_done = sum(1 for r in rows if r['one_pager'] and r['one_pager'].status == 'submitted')
+    full_done = sum(1 for r in rows if r['enrollment'] and r['enrollment'].status == 'completed')
+    # Conversion: one-pager authors who also enrolled in full program
+    one_pager_authors = {r['author'].id for r in rows if r['one_pager']}
+    converted = sum(1 for r in rows if r['author'].id in one_pager_authors and r['enrollment'])
+    conversion_rate = int((converted / len(one_pager_authors)) * 100) if one_pager_authors else 0
+
+    stats = {
+        'total': total,
+        'active_7': active_7,
+        'stalled': stalled,
+        'one_pager_done': one_pager_done,
+        'full_done': full_done,
+        'conversion_rate': conversion_rate,
+    }
+
+    return render_template('admin_pipeline.html', rows=rows, stats=stats)
+
+
+# ============================================================================
+# ADMIN — ONE-PAGER REVIEW
+# ============================================================================
+
+@app.route('/admin/one-pager/<int:submission_id>', methods=['GET', 'POST'])
+@team_required
+def admin_one_pager_detail(submission_id):
+    """Admin view of a submitted one-pager."""
+    submission = OnePagerSubmission.query.get_or_404(submission_id)
+    if request.method == 'POST':
+        submission.admin_notes = request.form.get('admin_notes', '').strip()
+        db.session.commit()
+        flash('Notes saved.', 'success')
+    answers = json.loads(submission.answers_json) if submission.answers_json else {}
+    return render_template('admin_one_pager_detail.html', submission=submission, answers=answers)
+
+
+# ============================================================================
+# ADMIN — KNOWLEDGE BASE
+# ============================================================================
+
+@app.route('/admin/knowledge-base')
+@team_required
+def admin_knowledge_base():
+    """Admin knowledge base — upload training material per module."""
+    docs = KnowledgeBaseDocument.query.order_by(
+        db.case({None: 9999}, value=KnowledgeBaseDocument.module_order, else_=KnowledgeBaseDocument.module_order).asc(),
+        KnowledgeBaseDocument.uploaded_at.desc()
+    ).all()
+    return render_template('admin_knowledge_base.html', docs=docs, modules=COACHING_MODULES)
+
+
+@app.route('/admin/knowledge-base/upload', methods=['POST'])
+@team_required
+def admin_knowledge_base_upload():
+    """Upload a knowledge base document."""
+    title = request.form.get('title', '').strip()
+    module_order = request.form.get('module_order', type=int)
+    doc_type = request.form.get('doc_type', 'resource')
+    file = request.files.get('doc_file')
+
+    if not title or not file or not file.filename:
+        flash('Title and file are required.', 'error')
+        return redirect(url_for('admin_knowledge_base'))
+
+    filename = secure_filename(file.filename)
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    if ext not in ('pdf', 'docx', 'txt', 'doc'):
+        flash('Only PDF, Word, and TXT files are supported.', 'error')
+        return redirect(url_for('admin_knowledge_base'))
+
+    file_bytes = file.read()
+    content_text = ''
+    try:
+        if ext == 'txt':
+            content_text = file_bytes.decode('utf-8', errors='ignore')
+        elif ext in ('docx', 'doc'):
+            from io import BytesIO as _BytesIO
+            content_text = '\n'.join(
+                p.text for p in Document(_BytesIO(file_bytes)).paragraphs if p.text.strip()
+            )
+        elif ext == 'pdf':
+            content_text = extract_text_from_pdf(BytesIO(file_bytes))
+    except Exception as e:
+        print(f'KB extract error: {e}')
+
+    doc = KnowledgeBaseDocument(
+        title=title,
+        filename=filename,
+        content_text=content_text[:50000],   # cap at 50k chars
+        file_data=file_bytes,
+        file_type=ext,
+        module_order=module_order or None,
+        doc_type=doc_type,
+        uploaded_by=current_user.email,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    flash(f'"{title}" uploaded successfully.', 'success')
+    return redirect(url_for('admin_knowledge_base'))
+
+
+@app.route('/admin/knowledge-base/<int:doc_id>/delete', methods=['POST'])
+@team_required
+def admin_knowledge_base_delete(doc_id):
+    """Delete a knowledge base document."""
+    doc = KnowledgeBaseDocument.query.get_or_404(doc_id)
+    db.session.delete(doc)
+    db.session.commit()
+    flash(f'"{doc.title}" deleted.', 'success')
+    return redirect(url_for('admin_knowledge_base'))
+
+
+@app.route('/admin/knowledge-base/<int:doc_id>/download')
+@team_required
+def admin_knowledge_base_download(doc_id):
+    """Download original KB document file."""
+    doc = KnowledgeBaseDocument.query.get_or_404(doc_id)
+    return send_file(
+        BytesIO(doc.file_data),
+        download_name=doc.filename,
+        as_attachment=True,
+    )
 
 
 # ============================================================================
@@ -5109,6 +5725,19 @@ def run_migrations():
         db.session.rollback()
         print(f'Migration repair warning: {e}')
 
+    # ── author (new fields) ────────────────────────────────────────────────────
+    _add('author', 'pending_setup BOOLEAN DEFAULT FALSE')
+    _add('author', 'admin_created BOOLEAN DEFAULT FALSE')
+    _add('author', 'assigned_path VARCHAR(30)')
+    _add('author', 'last_login_at TIMESTAMP')
+
+    # ── one_pager_submission (new table) ───────────────────────────────────────
+    # SQLAlchemy db.create_all() handles new tables; _add is only for existing ones
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f'Migration create_all: {e}')
+
 
 # ============================================================================
 # CLI COMMANDS
@@ -5165,6 +5794,7 @@ with app.app_context():
     except Exception as e:
         print(f"Migration note: {e}")
 
+_start_reengagement_thread()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

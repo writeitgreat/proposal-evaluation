@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}One-Pager: {{ submission.author.name }} — Admin{% endblock %}
+
+{% block extra_css %}
+.page-header { background: var(--primary); color: white; padding: 1.5rem 2rem; }
+.page-header h1 { color: var(--accent); font-size: 1.25rem; margin: 0 0 0.25rem; }
+.page-header p  { color: rgba(255,255,255,0.7); font-size: 0.875rem; margin: 0; }
+.summary-body { font-size: 0.9375rem; line-height: 1.8; color: var(--gray-800); white-space: pre-wrap; }
+.summary-body strong { color: var(--primary); }
+.qa-block { margin-bottom: 1rem; }
+.qa-block .q { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); margin-bottom: 0.25rem; }
+.qa-block .a { font-size: 0.9rem; color: var(--gray-800); line-height: 1.65; }
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+            <h1>📄 One-Pager: {{ submission.author.name }}</h1>
+            <p>{{ submission.author.email }}
+                {% if submission.status == 'submitted' %}
+                · Submitted {{ submission.submitted_at.strftime('%b %d, %Y') if submission.submitted_at else '' }}
+                {% else %}
+                · Draft (not yet submitted)
+                {% endif %}
+            </p>
+        </div>
+        <a href="{{ url_for('admin_pipeline') }}" style="color:rgba(255,255,255,0.7);font-size:0.875rem;text-decoration:none;">← Pipeline</a>
+    </div>
+</div>
+
+<div class="container" style="margin-top:1.5rem;display:grid;grid-template-columns:1fr 320px;gap:1.25rem;align-items:start;">
+
+    <!-- Left: summary -->
+    <div>
+        <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:0.875rem 1.25rem;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;">
+                <h2 style="margin:0;font-size:1rem;color:var(--primary);">AI-Generated Summary</h2>
+                {% if submission.book_title %}
+                <span style="font-size:0.8125rem;color:var(--gray-500);font-style:italic;">{{ submission.book_title }}</span>
+                {% endif %}
+            </div>
+            <div style="padding:1.5rem;">
+                {% if submission.summary_text %}
+                <div class="summary-body">{{ submission.summary_text | replace('**', '') }}</div>
+                {% else %}
+                <p style="color:var(--gray-400);font-style:italic;">No summary generated yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Author's raw answers -->
+        <div class="card" style="margin-top:1rem;">
+            <h3 style="font-size:0.9375rem;color:var(--primary);margin:0 0 1rem;">Author's Answers</h3>
+            <div class="qa-block">
+                <div class="q">1. What problem does your book solve?</div>
+                <div class="a">{{ answers.get('problem', '—') }}</div>
+            </div>
+            <div class="qa-block">
+                <div class="q">2. Who is your target reader?</div>
+                <div class="a">{{ answers.get('reader', '—') }}</div>
+            </div>
+            <div class="qa-block">
+                <div class="q">3. Why is your book different?</div>
+                <div class="a">{{ answers.get('different', '—') or '—' }}</div>
+            </div>
+            <div class="qa-block">
+                <div class="q">4. Why are you the right person to write it?</div>
+                <div class="a">{{ answers.get('why_you', '—') }}</div>
+            </div>
+            <div class="qa-block">
+                <div class="q">5. How do you plan to market it?</div>
+                <div class="a">{{ answers.get('marketing', '—') or '—' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: admin notes -->
+    <div>
+        <div class="card">
+            <h3 style="font-size:0.9375rem;color:var(--primary);margin:0 0 1rem;">Admin Notes</h3>
+            <form method="POST">
+                <textarea name="admin_notes" rows="8"
+                    style="width:100%;padding:0.6rem 0.875rem;border:1.5px solid var(--gray-200);border-radius:7px;font-size:0.875rem;font-family:inherit;resize:vertical;box-sizing:border-box;"
+                    placeholder="Internal notes about this submission…">{{ submission.admin_notes or '' }}</textarea>
+                <button type="submit" class="btn btn-primary" style="margin-top:0.75rem;width:100%;font-size:0.875rem;">
+                    Save Notes
+                </button>
+            </form>
+        </div>
+
+        <div class="card" style="margin-top:1rem;">
+            <h3 style="font-size:0.9375rem;color:var(--primary);margin:0 0 0.75rem;">Author Info</h3>
+            <p style="font-size:0.875rem;margin:0 0 0.3rem;"><strong>{{ submission.author.name }}</strong></p>
+            <p style="font-size:0.875rem;margin:0 0 0.3rem;color:var(--gray-600);">{{ submission.author.email }}</p>
+            <p style="font-size:0.8rem;color:var(--gray-400);">Joined {{ submission.author.created_at.strftime('%b %d, %Y') }}</p>
+            {% if not submission.author.coaching_enrollments.first() %}
+            <a href="{{ url_for('admin_add_author') }}" style="font-size:0.8125rem;color:var(--primary);font-weight:600;text-decoration:none;display:block;margin-top:0.75rem;">
+                Enroll in Full Proposal →
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

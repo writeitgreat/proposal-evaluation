@@ -2,12 +2,12 @@
 {% block title %}Quick One-Pager — Write It Great{% endblock %}
 
 {% block extra_css %}
-.qs-wrap {
-    max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
-}
+.qs-wrap { max-width: 740px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
 .qs-hero { text-align: center; margin-bottom: 2rem; }
 .qs-hero h1 { font-size: 1.75rem; color: var(--primary); margin-bottom: 0.4rem; }
-.qs-hero p  { color: var(--gray-600); font-size: 0.975rem; max-width: 500px; margin: 0 auto; }
+.qs-hero p  { color: var(--gray-600); font-size: 0.975rem; max-width: 520px; margin: 0 auto; }
+.qs-steps { display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+.qs-step { font-size: 0.75rem; background: var(--gray-100); color: var(--gray-500); padding: 0.2rem 0.625rem; border-radius: 20px; }
 
 .qs-card {
     background: white; border: 1.5px solid var(--gray-200);
@@ -18,26 +18,17 @@
 
 .qs-field { margin-bottom: 1.125rem; }
 .qs-field:last-child { margin-bottom: 0; }
-.qs-field label {
-    display: block; font-size: 0.875rem; font-weight: 600;
-    color: var(--gray-800); margin-bottom: 0.35rem;
+.qs-field label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--gray-800); margin-bottom: 0.35rem; }
+.qs-field .hint { font-size: 0.775rem; color: var(--gray-400); font-weight: 400; margin-left: 0.25rem; }
+.qs-field input[type="text"], .qs-field textarea {
+    width: 100%; padding: 0.6rem 0.875rem; border: 1.5px solid var(--gray-200);
+    border-radius: 7px; font-size: 0.9rem; font-family: inherit; line-height: 1.6;
+    box-sizing: border-box; color: var(--gray-900); background: white; resize: vertical;
 }
-.qs-field .hint {
-    font-size: 0.775rem; color: var(--gray-400); font-weight: 400;
-    margin-left: 0.25rem;
-}
-.qs-field input[type="text"],
-.qs-field textarea {
-    width: 100%; padding: 0.6rem 0.875rem;
-    border: 1.5px solid var(--gray-200); border-radius: 7px;
-    font-size: 0.9rem; font-family: inherit; line-height: 1.6;
-    box-sizing: border-box; color: var(--gray-900); background: white;
-    resize: vertical;
-}
-.qs-field input:focus, .qs-field textarea:focus {
-    outline: none; border-color: var(--primary);
-}
+.qs-field input:focus, .qs-field textarea:focus { outline: none; border-color: var(--primary); }
 .qs-field textarea { min-height: 80px; }
+.q-num { font-size: 0.7rem; font-weight: 700; color: var(--primary); background: #ede9fe;
+    padding: 0.1rem 0.45rem; border-radius: 4px; margin-right: 0.35rem; }
 
 .qs-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
 .btn-qs-submit {
@@ -48,32 +39,28 @@
 .btn-qs-submit:hover { background: var(--primary-light); }
 
 /* Result */
-.qs-result {
-    background: white; border: 1.5px solid #c4b5fd;
-    border-radius: var(--radius); overflow: hidden; margin-top: 1.5rem;
-}
+.qs-result { background: white; border: 1.5px solid #c4b5fd; border-radius: var(--radius); overflow: hidden; margin-top: 1.5rem; }
 .qs-result-header {
     background: #f5f3ff; border-bottom: 1px solid #c4b5fd;
     padding: 0.875rem 1.25rem; display: flex; align-items: center;
     justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
 }
 .qs-result-header h2 { margin: 0; font-size: 1rem; color: #5b21b6; }
-.qs-result-body {
-    padding: 1.25rem 1.5rem; font-size: 0.9rem; line-height: 1.8;
-    color: var(--gray-800); white-space: pre-wrap;
-}
+.qs-result-body { padding: 1.25rem 1.5rem; font-size: 0.9375rem; line-height: 1.85; color: var(--gray-800); white-space: pre-wrap; }
 .qs-result-body strong { color: var(--primary); }
+
 .qs-next-steps {
     padding: 1rem 1.5rem; background: #f0fdf4; border-top: 1px solid #bbf7d0;
-    font-size: 0.875rem; color: #166534;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 0.75rem;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
 }
-.qs-next-steps a {
-    display: inline-block; padding: 0.5rem 1.25rem;
-    background: var(--primary); color: white; border-radius: var(--radius);
-    font-weight: 700; text-decoration: none; font-size: 0.875rem;
-}
+.qs-next-steps .left { font-size: 0.875rem; color: #166534; }
+.qs-next-actions { display: flex; gap: 0.625rem; flex-wrap: wrap; align-items: center; }
+.btn-print { padding: 0.5rem 1rem; background: white; border: 1.5px solid #86efac; color: #166534;
+    border-radius: var(--radius); font-weight: 600; font-size: 0.8125rem; cursor: pointer; text-decoration: none; }
+.btn-submit { padding: 0.5rem 1.25rem; background: var(--primary); color: white; border: none;
+    border-radius: var(--radius); font-weight: 700; font-size: 0.875rem; cursor: pointer; }
+.submitted-badge { display: inline-flex; align-items: center; gap: 0.35rem; background: #dcfce7;
+    color: #166534; border-radius: 20px; padding: 0.35rem 0.875rem; font-size: 0.875rem; font-weight: 600; }
 {% endblock %}
 
 {% block content %}
@@ -81,7 +68,13 @@
 
     <div class="qs-hero">
         <h1>⚡ Quick One-Pager</h1>
-        <p>Answer 5 questions and get a one-page proposal summary — a fast starting point before diving into the full program.</p>
+        <p>Answer 5 focused questions and get a professionally written one-page summary of your book idea — ready in minutes.</p>
+        <div class="qs-steps">
+            <span class="qs-step">⏱ ~45 minutes</span>
+            <span class="qs-step">5 questions</span>
+            <span class="qs-step">AI-generated summary</span>
+            <span class="qs-step">Submit to the WIG team</span>
+        </div>
     </div>
 
     {% if summary %}
@@ -89,14 +82,31 @@
     <div class="qs-result">
         <div class="qs-result-header">
             <h2>📄 Your One-Page Summary</h2>
-            <button onclick="copyResult()" style="background:white;border:1.5px solid #c4b5fd;color:#5b21b6;padding:0.3rem 0.875rem;border-radius:5px;font-size:0.8rem;cursor:pointer;font-weight:600;">
-                Copy
-            </button>
+            <div style="display:flex;gap:0.5rem;">
+                <button onclick="copyResult(this)" class="btn-print" style="border-color:#c4b5fd;color:#5b21b6;">
+                    Copy
+                </button>
+                <button onclick="window.print()" class="btn-print">🖨 Print / Save PDF</button>
+            </div>
         </div>
         <div class="qs-result-body" id="qs-result-text">{{ summary | replace('**', '') }}</div>
         <div class="qs-next-steps">
-            <span>Ready to build the full proposal?</span>
-            <a href="{{ url_for('author_coaching_dashboard') }}">Start the Coaching Program →</a>
+            <div class="left">
+                {% if submission and submission.status == 'submitted' %}
+                <span class="submitted-badge">✓ Submitted to Write It Great</span>
+                {% else %}
+                <span>Ready to share with our team?</span>
+                {% endif %}
+            </div>
+            <div class="qs-next-actions">
+                {% if submission and submission.status != 'submitted' %}
+                <form method="POST" action="{{ url_for('author_quickstart_submit') }}" style="display:inline;">
+                    <input type="hidden" name="submission_id" value="{{ submission.id }}">
+                    <button type="submit" class="btn-submit">Submit to Andy for Review →</button>
+                </form>
+                {% endif %}
+                <a href="{{ url_for('author_coaching_dashboard') }}" class="btn-print">Start Full Program →</a>
+            </div>
         </div>
     </div>
 
@@ -107,7 +117,7 @@
 
     <form method="POST" action="{{ url_for('author_coaching_quickstart') }}">
         <div class="qs-card">
-            <h2>About your book</h2>
+            <h2>Your Book</h2>
 
             <div class="qs-field">
                 <label>Working title <span class="hint">(optional)</span></label>
@@ -116,32 +126,32 @@
             </div>
 
             <div class="qs-field">
-                <label>1. What is your book about? <span class="hint">1-2 sentences</span></label>
-                <textarea name="concept" placeholder="e.g. Most first-time managers are technically excellent but emotionally underprepared. This book gives them the practical toolkit their MBA didn't…">{{ answers.get('concept', '') }}</textarea>
+                <label><span class="q-num">1</span>What problem does your book solve? <span class="hint">1-3 sentences</span></label>
+                <textarea name="problem" placeholder="e.g. Most first-time managers are technically excellent but emotionally underprepared for leading people. They're promoted for their skills, then left to figure out the human side alone…">{{ answers.get('problem', '') }}</textarea>
             </div>
 
             <div class="qs-field">
-                <label>2. Who is your target reader? <span class="hint">Be specific — occupation, life stage, problem</span></label>
+                <label><span class="q-num">2</span>Who is your target reader? <span class="hint">Be specific — occupation, life stage, pain point</span></label>
                 <textarea name="reader" placeholder="e.g. Mid-career professionals in their first people-management role who are great at their craft but overwhelmed by the human side of leadership…">{{ answers.get('reader', '') }}</textarea>
             </div>
         </div>
 
         <div class="qs-card">
-            <h2>About you &amp; the market</h2>
+            <h2>You &amp; the Market</h2>
 
             <div class="qs-field">
-                <label>3. Why are you the right person to write this? <span class="hint">Credentials, experience, unique perspective</span></label>
+                <label><span class="q-num">3</span>Why is your book different from what's already out there? <span class="hint">optional — methodology, angle, gap in the market</span></label>
+                <textarea name="different" placeholder="e.g. Most leadership books focus on high-level strategy. Mine is a practical, week-by-week guide rooted in neuroscience research, written specifically for first-time managers in technical fields…" style="min-height:70px;">{{ answers.get('different', '') }}</textarea>
+            </div>
+
+            <div class="qs-field">
+                <label><span class="q-num">4</span>Why are you the right person to write it? <span class="hint">credentials, experience, unique perspective</span></label>
                 <textarea name="why_you" placeholder="e.g. I spent 12 years as an engineering manager at three startups before founding a leadership coaching practice. I've trained over 400 first-time managers…">{{ answers.get('why_you', '') }}</textarea>
             </div>
 
             <div class="qs-field">
-                <label>4. Name 1-3 comparable books <span class="hint">optional — title, author, and one sentence on how yours differs</span></label>
-                <textarea name="comps" placeholder="e.g. The Making of a Manager by Julie Zhuo — covers the same audience but focuses on Google's culture. My book is universal and rooted in neuroscience…" style="min-height:65px;">{{ answers.get('comps', '') }}</textarea>
-            </div>
-
-            <div class="qs-field">
-                <label>5. What's your platform or reach? <span class="hint">optional — email list, social, speaking, etc.</span></label>
-                <textarea name="platform" placeholder="e.g. 3,200 email subscribers, LinkedIn 8,500 followers, speak at 4-6 HR conferences per year…" style="min-height:65px;">{{ answers.get('platform', '') }}</textarea>
+                <label><span class="q-num">5</span>How do you plan to market it? <span class="hint">optional — email list, social, speaking, courses, community</span></label>
+                <textarea name="marketing" placeholder="e.g. 3,200 email subscribers, LinkedIn 8,500 followers, speak at 4-6 HR conferences per year, run a paid cohort course with 200 alumni…" style="min-height:70px;">{{ answers.get('marketing', '') }}</textarea>
             </div>
         </div>
 
@@ -167,11 +177,10 @@
 
 {% block extra_js %}
 <script>
-function copyResult() {
+function copyResult(btn) {
     var el = document.getElementById('qs-result-text');
     if (!el) return;
     navigator.clipboard.writeText(el.textContent).then(function() {
-        var btn = event.target;
         btn.textContent = '✓ Copied';
         setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
     });
