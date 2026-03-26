@@ -35,12 +35,32 @@ import PyPDF2
 # ============================================================================
 
 app = Flask(__name__)
+
+# ── Reverse-proxy trust (required on Heroku / any platform behind a load balancer)
+# Without this Flask never sees the HTTPS scheme from the browser, which breaks:
+#   - url_for() generating http:// redirect targets after login
+#   - Session cookies missing the Secure flag (browser silently drops them on HTTPS)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///proposals.db')
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# ── Session / cookie security ──────────────────────────────────────────────────
+# On any production deployment (non-localhost) force HTTPS-only cookies so the
+# browser sends the session cookie back on every request.
+_is_production = os.environ.get('FLASK_ENV') != 'development' and os.environ.get('DATABASE_URL', '').startswith('postgres')
+app.config['SESSION_COOKIE_SECURE']   = _is_production   # only send over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True              # JS cannot read it
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'            # CSRF protection, allows normal nav
+app.config['REMEMBER_COOKIE_SECURE']  = _is_production
+app.config['REMEMBER_COOKIE_HTTPONLY']= True
+# Never hardcode a cookie domain — let Flask derive it from the request Host header
+# (i.e. do NOT set SESSION_COOKIE_DOMAIN — leave it unset)
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -90,7 +110,31 @@ TEAM_EMAILS = (os.environ.get('TEAM_EMAIL') or os.environ.get('TEAM_EMAILS') or 
 
 # External API configuration (Wix integration)
 API_KEY = os.environ.get('API_KEY', '')
-CORS_ORIGIN = os.environ.get('CORS_ORIGIN', 'https://www.writeitgreat.com')
+
+# APP_URL / APP_BASE_URL — the public root URL of this app (no trailing slash).
+# Set this in Heroku Config Vars to: https://authors.writeitgreat.com
+# We check both names so either works.
+APP_BASE_URL = (
+    os.environ.get('APP_BASE_URL') or
+    os.environ.get('APP_URL') or
+    'http://localhost:5000'
+).rstrip('/')
+
+# CORS allowed origins for the /api/submit Wix endpoint.
+# APP_BASE_URL is always added so authors.writeitgreat.com works automatically.
+# CORS_ORIGIN env var may contain additional comma-separated origins.
+# NOTE: No Google OAuth or third-party auth is used in this codebase, so no
+#       OAuth callback URL changes are required.
+_extra_origins = [o.strip() for o in os.environ.get('CORS_ORIGIN', '').split(',') if o.strip()]
+CORS_ORIGINS = list({
+    'https://www.writeitgreat.com',
+    'https://authors.writeitgreat.com',
+    APP_BASE_URL,
+    *_extra_origins,
+} - {'http://localhost:5000'} | ({'http://localhost:5000'} if not _is_production else set()))
+
+# Keep CORS_ORIGIN as a backwards-compat alias used by _cors_headers()
+CORS_ORIGIN = ','.join(CORS_ORIGINS)
 
 # Status options for proposals
 STATUS_OPTIONS = [
@@ -1578,7 +1622,7 @@ def send_author_notification(proposal):
     score_display = f"{proposal.overall_score:.0f}" if proposal.overall_score is not None else "N/A"
     summary = evaluation.get('executiveSummary', '') or evaluation.get('summary', 'See attached report for details.')
     tier_desc = evaluation.get('tierDescription', '')
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
 
     subject = f"Your Book Proposal Evaluation - {proposal.book_title}"
 
@@ -1689,9 +1733,9 @@ def send_team_notification(proposal):
                 {'<h2>Score Breakdown</h2><table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;"><tr style="background: #2D1B69; color: white;"><th style="padding: 10px; text-align: left;">Category</th><th style="padding: 10px; text-align: center;">Score</th></tr>' + score_rows + '</table>' if score_rows else ''}
 
                 <div style="margin-top: 20px;">
-                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Evaluation</a>
-                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}/view-proposal" style="display: inline-block; padding: 12px 24px; background: #2D1B69; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px;">Read Proposal Text</a>
-                    <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/admin/proposal/{proposal.submission_id}/download-proposal" style="display: inline-block; padding: 12px 24px; background: white; color: #2D1B69; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px; border: 2px solid #2D1B69;">Download Original File</a>
+                    <a href="{APP_BASE_URL}/admin/proposal/{proposal.submission_id}" style="display: inline-block; padding: 12px 24px; background: #B8F2B8; color: #1a3a1a; text-decoration: none; border-radius: 5px; font-weight: bold;">View Evaluation</a>
+                    <a href="{APP_BASE_URL}/admin/proposal/{proposal.submission_id}/view-proposal" style="display: inline-block; padding: 12px 24px; background: #2D1B69; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px;">Read Proposal Text</a>
+                    <a href="{APP_BASE_URL}/admin/proposal/{proposal.submission_id}/download-proposal" style="display: inline-block; padding: 12px 24px; background: white; color: #2D1B69; text-decoration: none; border-radius: 5px; font-weight: bold; margin-left: 10px; border: 2px solid #2D1B69;">Download Original File</a>
                 </div>
             </div>
         </body>
@@ -1792,7 +1836,7 @@ def send_author_milestone_email(proposal, new_status):
         return False
 
     friendly_status = AUTHOR_STATUS_LABELS.get(new_status, new_status)
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
 
     # Custom message per milestone
     messages = {
@@ -1867,7 +1911,7 @@ def _coaching_email_footer():
 
 def send_coaching_welcome_email(author, enrollment):
     """Welcome email when an author enrolls in the coaching program"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     subject = "Welcome to the Write It Great Coaching Program!"
     book_title_line = f" for <strong>\"{enrollment.book_title}\"</strong>" if enrollment.book_title else ""
     html_content = f"""
@@ -1901,7 +1945,7 @@ def send_coaching_welcome_email(author, enrollment):
 
 def send_coaching_module_unlocked_email(author, module_info, enrollment):
     """Email when a new module unlocks"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     module_num = module_info['order']
     module_title = module_info['title']
     subject = f"Module {module_num} Unlocked: {module_title}"
@@ -1932,7 +1976,7 @@ def send_coaching_module_unlocked_email(author, module_info, enrollment):
 
 def send_coaching_homework_reminder_email(author, module_info, enrollment):
     """Reminder email when homework hasn't been submitted after several days"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     module_num = module_info['order']
     subject = f"Don't forget — Module {module_num} homework is waiting for you"
     html_content = f"""
@@ -1960,7 +2004,7 @@ def send_coaching_homework_reminder_email(author, module_info, enrollment):
 
 def send_coaching_homework_reviewed_email(author, module_info, submission):
     """Email when AI (or admin) has reviewed a homework submission"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     module_num = module_info['order']
     approved = submission.ai_approved
     subject = (f"Module {module_num} approved — next module unlocked!" if approved
@@ -1998,7 +2042,7 @@ def send_coaching_homework_reviewed_email(author, module_info, submission):
 
 def send_coaching_complete_email(author, enrollment):
     """Email when the author completes all coaching modules"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     subject = "Congratulations — Your Proposal Is Ready for Evaluation!"
     book_title_line = f"for <strong>\"{enrollment.book_title}\"</strong> " if enrollment.book_title else ""
     html_content = f"""
@@ -2031,7 +2075,7 @@ def send_coaching_complete_email(author, enrollment):
 
 def send_author_welcome_invite_email(author, token):
     """Admin-created account: send invite email with set-password link"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     set_url = f"{app_url}/author/reset-password/{token}"
     path_line = ''
     if author.assigned_path == 'one_pager':
@@ -2062,7 +2106,7 @@ def send_author_welcome_invite_email(author, token):
 
 def send_one_pager_submitted_notification(author, submission):
     """Notify the WIG team when an author submits their one-pager for review"""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     admin_url = f"{app_url}/admin/one-pager/{submission.id}"
     answers = json.loads(submission.answers_json) if submission.answers_json else {}
     html_content = f"""<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
@@ -2099,7 +2143,7 @@ REENGAGEMENT_TYPES = {
 
 def send_reengagement_email(author, email_type, module_name='', completed_count=0):
     """Send a warm re-engagement email. Returns True if sent."""
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     subject_map = {
         'never_started':        'Your proposal is waiting — here\'s how to begin in 10 minutes',
         'stalled_one_pager':    'You\'ve already started something great ✨',
@@ -3628,7 +3672,7 @@ def api_submit():
         thread.daemon = True
         thread.start()
 
-        app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+        app_url = APP_BASE_URL
         return _json({
             'success': True,
             'submission_id': proposal.submission_id,
@@ -3806,7 +3850,7 @@ def author_forgot_password():
             token = author.generate_reset_token()
             db.session.commit()
 
-            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            app_url = APP_BASE_URL
             reset_link = f"{app_url}/author/reset-password/{token}"
             html_content = f"""
             <html><body style="font-family: Arial, sans-serif; color: #333;">
@@ -4067,7 +4111,7 @@ def publisher_forgot_password():
             token = publisher.generate_reset_token()
             db.session.commit()
 
-            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            app_url = APP_BASE_URL
             reset_link = f"{app_url}/publisher/reset-password/{token}"
             html_content = f"""
             <html><body style="font-family: Arial, sans-serif; color: #333;">
@@ -4588,7 +4632,7 @@ def admin_forgot_password():
             token = user.generate_reset_token()
             db.session.commit()
 
-            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            app_url = APP_BASE_URL
             reset_url = f"{app_url}/admin/reset-password/{token}"
 
             reset_html = f"""
@@ -4949,7 +4993,7 @@ def admin_approve_publisher(publisher_id):
     db.session.commit()
 
     # Send approval notification email
-    app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+    app_url = APP_BASE_URL
     html_content = f"""
     <html><body style="font-family: Arial, sans-serif; color: #333;">
         <div style="max-width: 500px; margin: 0 auto; padding: 20px;">
@@ -5370,7 +5414,7 @@ def admin_add_author():
         if sent:
             flash(f'Account created and invite sent to {email}.', 'success')
         else:
-            app_url = os.environ.get('APP_URL', 'http://localhost:5000')
+            app_url = APP_BASE_URL
             setup_url = f"{app_url}/author/reset-password/{token}"
             flash(f'Account created for {email}. Email could not be sent — share this link manually: {setup_url}', 'warning')
 
