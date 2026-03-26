@@ -50,17 +50,28 @@ if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# ── APP_BASE_URL — must be defined before cookie config (used as the HTTPS signal)
+# Set APP_URL (or APP_BASE_URL) in Heroku Config Vars:
+#   APP_URL = https://authors.writeitgreat.com
+APP_BASE_URL = (
+    os.environ.get('APP_BASE_URL') or
+    os.environ.get('APP_URL') or
+    'http://localhost:5000'
+).rstrip('/')
+
+# ── Production detection: trust APP_BASE_URL, not DATABASE_URL.
+# If the public URL is https://, we're on a live deployment — enable secure cookies.
+# This works correctly on Heroku as soon as APP_URL is set to the custom domain.
+_is_production = APP_BASE_URL.startswith('https://')
+
 # ── Session / cookie security ──────────────────────────────────────────────────
-# On any production deployment (non-localhost) force HTTPS-only cookies so the
-# browser sends the session cookie back on every request.
-_is_production = os.environ.get('FLASK_ENV') != 'development' and os.environ.get('DATABASE_URL', '').startswith('postgres')
-app.config['SESSION_COOKIE_SECURE']   = _is_production   # only send over HTTPS
+app.config['SESSION_COOKIE_SECURE']   = _is_production   # only transmit over HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True              # JS cannot read it
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'            # CSRF protection, allows normal nav
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'            # CSRF protection; allows normal nav
 app.config['REMEMBER_COOKIE_SECURE']  = _is_production
 app.config['REMEMBER_COOKIE_HTTPONLY']= True
-# Never hardcode a cookie domain — let Flask derive it from the request Host header
-# (i.e. do NOT set SESSION_COOKIE_DOMAIN — leave it unset)
+# SESSION_COOKIE_DOMAIN is intentionally NOT set — Flask derives it from the
+# incoming Host header, which means it works on any domain without code changes.
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -110,15 +121,6 @@ TEAM_EMAILS = (os.environ.get('TEAM_EMAIL') or os.environ.get('TEAM_EMAILS') or 
 
 # External API configuration (Wix integration)
 API_KEY = os.environ.get('API_KEY', '')
-
-# APP_URL / APP_BASE_URL — the public root URL of this app (no trailing slash).
-# Set this in Heroku Config Vars to: https://authors.writeitgreat.com
-# We check both names so either works.
-APP_BASE_URL = (
-    os.environ.get('APP_BASE_URL') or
-    os.environ.get('APP_URL') or
-    'http://localhost:5000'
-).rstrip('/')
 
 # CORS allowed origins for the /api/submit Wix endpoint.
 # APP_BASE_URL is always added so authors.writeitgreat.com works automatically.
@@ -921,6 +923,20 @@ def load_user(user_id):
 
 
 from functools import wraps
+from urllib.parse import urlparse
+
+def _safe_next(next_url):
+    """Return next_url only if it is a relative path on this app.
+    Rejects absolute URLs (open-redirect prevention) and any URL pointing
+    to a different host — including stale references to the old Heroku domain."""
+    if not next_url:
+        return None
+    parsed = urlparse(next_url)
+    # Accept only paths with no scheme/netloc (i.e. relative URLs)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return next_url
+
 
 def admin_required(f):
     """Decorator: requires login + admin role"""
@@ -3796,7 +3812,7 @@ def author_login():
             if author.pending_setup:
                 author.pending_setup = False
             db.session.commit()
-            next_url = request.args.get('next')
+            next_url = _safe_next(request.args.get('next'))
             if author.assigned_path == 'one_pager' and not next_url:
                 return redirect(url_for('author_coaching_quickstart'))
             return redirect(next_url or url_for('author_dashboard'))
