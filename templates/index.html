@@ -192,9 +192,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             if (data.success && data.proposal_id) {
                 {% if current_user.is_authenticated and current_user.is_team_member %}
-                window.location.href = '/results/' + data.proposal_id;
+                window.location.href = '/admin/proposal/' + data.proposal_id;
                 {% else %}
-                window.location.href = '/author/proposal/' + data.proposal_id;
+                window.location.href = '/results/' + data.proposal_id;
                 {% endif %}
             } else {
                 loadingOverlay.classList.add('hidden');
