@@ -155,9 +155,13 @@ audio { width: 100%; border-radius: 6px; }
             </div>
             <div class="qs-next-actions">
                 {% if submission and submission.status != 'submitted' %}
-                <form method="POST" action="{{ url_for('author_quickstart_submit') }}" style="display:inline;">
+                <form method="POST" action="{{ url_for('author_quickstart_submit') }}" style="display:inline;" id="submit-form">
                     <input type="hidden" name="submission_id" value="{{ submission.id }}">
-                    <button type="submit" class="btn-submit">Submit to Andy for Review →</button>
+                    <input type="hidden" name="handle_linkedin" id="sf-handle-linkedin">
+                    <input type="hidden" name="handle_instagram" id="sf-handle-instagram">
+                    <input type="hidden" name="handle_tiktok" id="sf-handle-tiktok">
+                    <input type="hidden" name="handle_youtube" id="sf-handle-youtube">
+                    <button type="submit" class="btn-submit" onclick="copyHandles()">Submit to Andy for Review →</button>
                 </form>
                 {% endif %}
                 <a href="{{ url_for('author_coaching_dashboard') }}" class="btn-print">Start Full Program →</a>
@@ -231,6 +235,20 @@ audio { width: 100%; border-radius: 6px; }
                 <label><span class="q-num">5</span>How do you plan to market it? <span class="hint">optional — email list, social, speaking, courses, community</span></label>
                 <textarea name="marketing" placeholder="e.g. 3,200 email subscribers, LinkedIn 8,500 followers, speak at 4-6 HR conferences per year, run a paid cohort course with 200 alumni…" style="min-height:70px;">{{ answers.get('marketing', '') }}</textarea>
             </div>
+
+            <div class="qs-field">
+                <label>Your social handles <span class="hint">optional — we use these to personalise your social media strategy</span></label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.25rem;">
+                    {% for plat, ph in [('LinkedIn','linkedin.com/in/yourname'),('Instagram','@yourhandle'),('TikTok','@yourhandle'),('YouTube','youtube.com/@yourchannel')] %}
+                    <div style="display:flex;align-items:center;gap:0.4rem;">
+                        <span style="font-size:0.775rem;font-weight:600;color:var(--gray-500);min-width:72px;">{{ plat }}</span>
+                        <input type="text" name="handle_{{ plat | lower }}" placeholder="{{ ph }}"
+                               value="{{ answers.get('handle_' ~ (plat | lower), '') }}"
+                               style="flex:1;padding:0.4rem 0.625rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:0.8125rem;font-family:inherit;color:var(--gray-900);">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
 
         <div class="qs-actions">
@@ -256,6 +274,14 @@ audio { width: 100%; border-radius: 6px; }
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <script>
+function copyHandles() {
+    ['linkedin','instagram','tiktok','youtube'].forEach(function(p) {
+        var src = document.querySelector('[name="handle_' + p + '"]:not([type="hidden"])');
+        var dst = document.getElementById('sf-handle-' + p);
+        if (src && dst) dst.value = src.value;
+    });
+}
+
 function copyResult(btn) {
     var el = document.getElementById('qs-result-text');
     if (!el) return;

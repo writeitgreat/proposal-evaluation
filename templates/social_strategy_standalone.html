@@ -122,6 +122,20 @@
             </div>
 
             <div class="ss-field">
+                <label>Your social handles <span class="hint">optional — helps us tailor advice to your existing presence</span></label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.625rem;">
+                    {% for plat, ph in [('LinkedIn','linkedin.com/in/yourname'),('Instagram','@yourhandle'),('TikTok','@yourhandle'),('YouTube','youtube.com/@yourchannel')] %}
+                    <div style="display:flex;align-items:center;gap:0.4rem;">
+                        <span style="font-size:0.775rem;font-weight:600;color:var(--gray-500);min-width:72px;">{{ plat }}</span>
+                        <input type="text" name="handle_{{ plat | lower }}" placeholder="{{ ph }}"
+                               value="{{ form.get('handle_' ~ (plat | lower), '') }}"
+                               style="flex:1;padding:0.4rem 0.625rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:0.8125rem;font-family:inherit;">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="ss-field">
                 <label>What's your current posting frequency?</label>
                 <div class="freq-options">
                     {% for val, label in [('Never','Never'),('Occasionally','Occasionally'),('1-2x/week','1–2x / week'),('More','More than 2x / week')] %}
