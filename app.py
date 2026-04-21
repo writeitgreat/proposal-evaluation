@@ -1708,6 +1708,7 @@ Target reader: {target_reader}
 Author background / expertise: {background}
 Platforms currently active on: {platforms}
 Current posting frequency: {posting_freq}
+Existing social handles: {handles}
 
 Return ONLY valid JSON (no markdown fences) matching this exact structure:
 {{
@@ -1739,10 +1740,22 @@ Return ONLY valid JSON (no markdown fences) matching this exact structure:
 
 Rules:
 - Recommend 2-3 platforms most relevant to the author's topic/audience
+- If the author already has handles on specific platforms, prioritise those and reference them in your reasoning
 - Generate 3-4 content pillars derived directly from the book topic and target reader
 - Quick wins must be concrete and specific to THIS author's expertise, not generic tips
+- If handles are provided, tailor the quick wins to formats that work on those specific platforms
 - Return only the JSON object, nothing else
 """
+
+
+def _format_handles(inputs: dict) -> str:
+    """Build a readable handles string from handle_* keys in inputs."""
+    parts = []
+    for plat in ('linkedin', 'instagram', 'tiktok', 'youtube'):
+        val = inputs.get(f'handle_{plat}', '').strip()
+        if val:
+            parts.append(f"{plat.capitalize()}: {val}")
+    return ', '.join(parts) if parts else 'None provided'
 
 
 def generate_social_strategy(inputs: dict) -> dict:
@@ -1753,6 +1766,7 @@ def generate_social_strategy(inputs: dict) -> dict:
         background    = inputs.get('background') or inputs.get('why_you', ''),
         platforms     = inputs.get('platforms') or 'Not specified',
         posting_freq  = inputs.get('posting_freq') or 'Not specified',
+        handles       = _format_handles(inputs),
     )
     response = client.chat.completions.create(
         model='gpt-4o-mini',
@@ -3227,12 +3241,16 @@ def author_coaching_quickstart():
 
     if request.method == 'POST':
         answers = {
-            'problem':   request.form.get('problem', '').strip(),
-            'reader':    request.form.get('reader', '').strip(),
-            'different': request.form.get('different', '').strip(),
-            'why_you':   request.form.get('why_you', '').strip(),
-            'marketing': request.form.get('marketing', '').strip(),
-            'book_title':request.form.get('book_title', '').strip(),
+            'problem':          request.form.get('problem', '').strip(),
+            'reader':           request.form.get('reader', '').strip(),
+            'different':        request.form.get('different', '').strip(),
+            'why_you':          request.form.get('why_you', '').strip(),
+            'marketing':        request.form.get('marketing', '').strip(),
+            'book_title':       request.form.get('book_title', '').strip(),
+            'handle_linkedin':  request.form.get('handle_linkedin', '').strip(),
+            'handle_instagram': request.form.get('handle_instagram', '').strip(),
+            'handle_tiktok':    request.form.get('handle_tiktok', '').strip(),
+            'handle_youtube':   request.form.get('handle_youtube', '').strip(),
         }
         if not all([answers['problem'], answers['reader'], answers['why_you']]):
             missing = []
@@ -3335,12 +3353,19 @@ def author_quickstart_submit():
     strategy_id = None
     try:
         answers  = json.loads(submission.answers_json) if submission.answers_json else {}
+        def _handle(key):
+            return (request.form.get(key, '').strip()
+                    or answers.get(key, '').strip())
         inputs   = {
-            'book_about':    answers.get('problem', ''),
-            'target_reader': answers.get('reader', ''),
-            'background':    answers.get('why_you', ''),
-            'platforms':     'Not specified',
-            'posting_freq':  'Not specified',
+            'book_about':       answers.get('problem', ''),
+            'target_reader':    answers.get('reader', ''),
+            'background':       answers.get('why_you', ''),
+            'platforms':        answers.get('marketing', 'Not specified') or 'Not specified',
+            'posting_freq':     'Not specified',
+            'handle_linkedin':  _handle('handle_linkedin'),
+            'handle_instagram': _handle('handle_instagram'),
+            'handle_tiktok':    _handle('handle_tiktok'),
+            'handle_youtube':   _handle('handle_youtube'),
         }
         strategy_data = generate_social_strategy(inputs)
         ss = SocialStrategy(
@@ -3425,6 +3450,10 @@ def social_strategy_standalone():
             'posting_freq':  request.form.get('posting_freq', '').strip(),
             'lead_name':     request.form.get('lead_name', '').strip(),
             'lead_email':    request.form.get('lead_email', '').strip(),
+            'handle_linkedin':  request.form.get('handle_linkedin', '').strip(),
+            'handle_instagram': request.form.get('handle_instagram', '').strip(),
+            'handle_tiktok':    request.form.get('handle_tiktok', '').strip(),
+            'handle_youtube':   request.form.get('handle_youtube', '').strip(),
         }
         if not all([form_data['book_about'], form_data['target_reader'],
                     form_data['background'], form_data['lead_name'], form_data['lead_email']]):
